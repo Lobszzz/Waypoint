@@ -1062,7 +1062,7 @@ export default function App() {
   };
 
   // Generate Pure Landscape Scenery Art via Gemini API
-  const handleGenerateLandscapeArt = async (card) => {
+ const handleGenerateLandscapeArt = async (card) => {
     cardAudio.playClick();
     const fallbackSvg = generateProceduralLandscapeArt(card.title, card.category);
 
@@ -1071,53 +1071,27 @@ export default function App() {
       setInspectedCard(prev => ({ ...prev, isGeneratingArt: true }));
     }
 
-    const apiKey = geminiApiKey || "";
-    const prompt = `A breathtaking fantasy anime watercolor landscape illustration of ${card.title} in ${currentCity.name}, Japan. Empty landscape scenery only, absolutely no people and no human figures. Ethereal watercolor atmosphere, soft golden hour sunlight, towering bright white cumulus clouds in a cerulean sky, moss-covered ancient stone structures, peaceful hills and wildflowers, floating luminous blue mana motes drifting gently in the breeze. Studio anime scenery wallpaper, 8k resolution, serene natural world masterwork.`;
+    const cleanPrompt = encodeURIComponent(
+      `fantasy anime watercolor painting, serene Japanese landscape scenery of ${card.title} in ${currentCity.name} Japan, soft golden sunlight, towering anime cumulus clouds, tranquil stone arches, ghibli aesthetic, no people, 8k resolution`
+    );
+    const randomSeed = Math.floor(Math.random() * 900000) + 100000;
+    const finalUrl = `https://image.pollinations.ai/prompt/${cleanPrompt}?width=800&height=800&nologo=true&seed=${randomSeed}`;
 
-    let finalUrl = null;
-
-    // 1. Try Gemini Image API if key is present
-    if (apiKey) {
-      try {
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`;
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: {
-              responseModalities: ['IMAGE'],
-              imageConfig: { aspectRatio: "1:1" }
-            }
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-          if (part && part.inlineData?.data) {
-            finalUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-          }
-        } else {
-          console.warn(`Gemini returned status ${response.status}, falling back to scenery engine...`);
-        }
-      } catch (err) {
-        console.warn('Gemini request failed, switching to backup scenery engine:', err);
+    const img = new Image();
+    img.src = finalUrl;
+    img.onload = () => {
+      setPlaces(prev => prev.map(p => p.id === card.id ? { ...p, artworkUrl: finalUrl, isGeneratingArt: false } : p));
+      if (inspectedCard && inspectedCard.id === card.id) {
+        setInspectedCard(prev => ({ ...prev, artworkUrl: finalUrl, isGeneratingArt: false }));
       }
-    }
-
-    // 2. If Gemini is rate-limited (429) or no quota, use high-speed free AI anime watercolor generation
-    if (!finalUrl) {
-      const encodedPrompt = encodeURIComponent(`fantasy anime watercolor painting, serene landscape of ${card.title} ${currentCity.name} Japan, cumulus clouds, beautiful lighting, studio ghibli aesthetic, no people, masterpiece, 8k`);
-      const seed = Math.floor(Math.random() * 999999);
-      finalUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=800&nologo=true&seed=${seed}`;
-    }
-
-    // Apply the image
-    setPlaces(prev => prev.map(p => p.id === card.id ? { ...p, artworkUrl: finalUrl, isGeneratingArt: false } : p));
-    if (inspectedCard && inspectedCard.id === card.id) {
-      setInspectedCard(prev => ({ ...prev, artworkUrl: finalUrl, isGeneratingArt: false }));
-    }
+      cardAudio.playFoilUnlock();
+    };
+    img.onerror = () => {
+      setPlaces(prev => prev.map(p => p.id === card.id ? { ...p, artworkUrl: fallbackSvg, isGeneratingArt: false } : p));
+      if (inspectedCard && inspectedCard.id === card.id) {
+        setInspectedCard(prev => ({ ...prev, artworkUrl: fallbackSvg, isGeneratingArt: false }));
+      }
+    };
 
     if (supabaseRef.current) {
       supabaseRef.current.from('trip_places').upsert({
@@ -1125,16 +1099,11 @@ export default function App() {
         city: card.cityId,
         name: card.title,
         image_url: finalUrl
-      }).catch(err => console.warn(err));
+      }).catch(console.warn);
     }
+  };
 
-    cardAudio.playFoilUnlock();
-  };
-        setInspectedCard(prev => ({ ...prev, artworkUrl: fallbackArt, isGeneratingArt: false }));
-      }
-    }
-  };
-  
+  // AI Chat with Gemini Pro / 3.8 Flash model engine
   // AI Chat with Gemini Pro / 3.8 Flash model engine
   const handleAiSend = async (forcedText = null) => {
     const text = (forcedText || aiInput).trim();
