@@ -1203,7 +1203,7 @@ export default function App() {
     }
 
     cardAudio.playFoilUnlock();
-  
+  };
 Respond with warmth, practical transit and timing tips, food recommendations, and serene travel philosophy.`;
 
     try {
