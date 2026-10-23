@@ -1071,12 +1071,14 @@ export default function App() {
       setInspectedCard(prev => ({ ...prev, isGeneratingArt: true }));
     }
 
+    // Direct high-resolution fantasy anime watercolor generator
     const cleanPrompt = encodeURIComponent(
-      `fantasy anime watercolor painting, serene Japanese landscape scenery of ${card.title} in ${currentCity.name} Japan, soft golden sunlight, towering anime cumulus clouds, tranquil stone arches, ghibli aesthetic, no people, 8k resolution`
+      `fantasy anime watercolor scenery of ${card.title} in ${currentCity.name} Japan, soft golden sunlight, towering anime cumulus clouds, tranquil architecture, ghibli aesthetic, no people, masterpiece, 8k resolution`
     );
     const randomSeed = Math.floor(Math.random() * 900000) + 100000;
-    const finalUrl = `https://image.pollinations.ai/prompt/${cleanPrompt}?width=800&height=800&nologo=true&seed=${randomSeed}`;
+    const finalUrl = `https://image.pollinations.ai/prompt/${cleanPrompt}?width=800&height=800&nologo=true&seed=${randomSeed}&model=flux`;
 
+    // Pre-load the generated image
     const img = new Image();
     img.src = finalUrl;
     img.onload = () => {
@@ -1102,17 +1104,6 @@ export default function App() {
       }).catch(console.warn);
     }
   };
-
-  // AI Chat with Gemini Pro / 3.8 Flash model engine
-  // AI Chat with Gemini Pro / 3.8 Flash model engine
-  const handleAiSend = async (forcedText = null) => {
-    const text = (forcedText || aiInput).trim();
-    if (!text) return;
-    setAiLog(prev => [...prev, { role: 'user', text }]);
-    setAiInput('');
-    setIsAiThinking(true);
-
-    const apiKey = geminiApiKey || "";
     const modelToUse = selectedGeminiModel || "gemini-3.8-flash";
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
 
