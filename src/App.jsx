@@ -43,8 +43,9 @@ import {
 
 // Browser-safe dynamic Supabase client helper that avoids build/compilation errors
 // when @supabase/supabase-js is not yet installed in local/sandbox environments.
-function getSupabaseClient(url, key) {
-  if (!url || !key) return null;
+function getSupabaseClient(rawUrl, key) {
+  if (!rawUrl || !key) return null;
+  const url = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
   try {
     if (typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function') {
       return window.supabase.createClient(url, key);
@@ -729,8 +730,8 @@ export default function App() {
   const [now, setNow] = useState(new Date());
 
   // Cloud Sync (Supabase Credentials)
-  const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('waypoint_supabase_url') || '');
-  const [supabaseAnonKey, setSupabaseAnonKey] = useState(() => localStorage.getItem('waypoint_supabase_key') || '');
+  const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('waypoint_supabase_url') || 'https://rplthksiyiwlqjcjazto.supabase.co');
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState(() => localStorage.getItem('waypoint_supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwbHRoa3NpeWl3bHFqY2phenRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3Njg1NDIsImV4cCI6MjEwODM0NDU0Mn0.CyVoRZ9yVQYZYykYANg94dLPBe_kxLeexh9kHEj8dsM');
   const [cloudSyncStatus, setCloudSyncStatus] = useState('offline'); // 'connected' | 'offline' | 'syncing'
 
   // Supabase Client Ref
