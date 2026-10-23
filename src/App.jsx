@@ -1,47 +1,31 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
-  Sparkles, 
   Calendar, 
   PieChart, 
   Bot, 
-  Languages, 
   Plus, 
   Trash2, 
   Send, 
-  Check, 
   Edit3, 
   Clock, 
   Train, 
-  Volume2, 
-  VolumeX, 
   Users, 
-  Lock, 
   X, 
   Coins, 
   Sun, 
-  Layers, 
-  Star, 
   MapPin, 
   RefreshCw, 
-  Wand2, 
-  Eye, 
-  Flame, 
-  Zap, 
   Compass,
   CheckCircle2,
   Circle,
   Settings,
   ExternalLink,
-  BookOpen,
-  Feather,
   Sliders,
   Database,
   Cloud,
-  CloudOff,
-  CheckCheck
+  CloudOff
 } from 'lucide-react';
 
-// Browser-safe dynamic Supabase client helper
 function getSupabaseClient(rawUrl, key) {
   if (!rawUrl || !key) return null;
   const url = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
@@ -49,7 +33,6 @@ function getSupabaseClient(rawUrl, key) {
     if (typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function') {
       return window.supabase.createClient(url, key);
     }
-    // Fallback lightweight REST client if CDN is still loading
     return {
       from: (tableName) => ({
         select: async () => {
@@ -65,7 +48,7 @@ function getSupabaseClient(rawUrl, key) {
         },
         insert: async (rows) => {
           try {
-            const res = await fetch(`${url}/rest/v1/${tableName}`, {
+            await fetch(`${url}/rest/v1/${tableName}`, {
               method: 'POST',
               headers: {
                 apikey: key,
@@ -75,11 +58,6 @@ function getSupabaseClient(rawUrl, key) {
               },
               body: JSON.stringify(rows)
             });
-            if (!res.ok) {
-              const errBody = await res.text();
-              console.error(`Supabase Insert error [${res.status}]:`, errBody);
-              return { error: errBody };
-            }
             return { error: null };
           } catch (e) {
             return { error: e };
@@ -102,24 +80,6 @@ function getSupabaseClient(rawUrl, key) {
             return { error: e };
           }
         },
-        update: (updates) => ({
-          eq: async (col, val) => {
-            try {
-              await fetch(`${url}/rest/v1/${tableName}?${col}=eq.${val}`, {
-                method: 'PATCH',
-                headers: {
-                  apikey: key,
-                  Authorization: `Bearer ${key}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(updates)
-              });
-              return { error: null };
-            } catch (e) {
-              return { error: e };
-            }
-          }
-        }),
         delete: () => ({
           eq: async (col, val) => {
             try {
@@ -141,338 +101,10 @@ function getSupabaseClient(rawUrl, key) {
       removeChannel: () => {}
     };
   } catch (err) {
-    console.warn('Unable to initialize Supabase client:', err);
     return null;
   }
 }
 
-// ============================================================================
-// 1. AUDIO SYNTHESIZER (Web Audio API)
-// ============================================================================
-class CardAudioEngine {
-  constructor() {
-    this.ctx = null;
-    this.muted = false;
-  }
-
-  init() {
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) this.ctx = new AudioCtx();
-    }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
-    }
-  }
-
-  playFoilUnlock() {
-    if (this.muted) return;
-    this.init();
-    if (!this.ctx) return;
-
-    const freqs = [659.25, 830.61, 987.77, 1318.51, 1661.22, 1975.53];
-    let start = this.ctx.currentTime + 0.03;
-
-    freqs.forEach((f, idx) => {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
-      osc.frequency.setValueAtTime(f, start);
-
-      gain.gain.setValueAtTime(0.12, start);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.55);
-
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start(start);
-      osc.stop(start + 0.58);
-      start += 0.06;
-    });
-  }
-
-  playClick() {
-    if (this.muted) return;
-    this.init();
-    if (!this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(520, this.ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(260, this.ctx.currentTime + 0.08);
-    gain.gain.setValueAtTime(0.06, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.09);
-  }
-}
-const cardAudio = new CardAudioEngine();
-
-// ============================================================================
-// 2. PROCEDURAL LANDSCAPE SCENERY GENERATOR (Pure Scenery - No Characters)
-// ============================================================================
-function generateProceduralLandscapeArt(title, category) {
-  const isNight = (title || '').toLowerCase().includes('night') || 
-                  (title || '').toLowerCase().includes('canal') || 
-                  (title || '').toLowerCase().includes('dotonbori') || 
-                  (title || '').toLowerCase().includes('yatai');
-  
-  if (isNight) {
-    return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
-      <defs>
-        <linearGradient id="twilightSky" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="%231E1B4B"/>
-          <stop offset="45%" stop-color="%23312E81"/>
-          <stop offset="75%" stop-color="%23B45309"/>
-          <stop offset="100%" stop-color="%23FBBF24"/>
-        </linearGradient>
-        <linearGradient id="waterMirror" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="%231E1B4B"/>
-          <stop offset="100%" stop-color="%230F172A"/>
-        </linearGradient>
-        <filter id="manaGlow">
-          <feGaussianBlur stdDeviation="5" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
-      <rect width="600" height="600" fill="url(%23twilightSky)"/>
-      <ellipse cx="480" cy="160" rx="42" ry="42" fill="%23FEF3C7" opacity="0.9" filter="url(%23manaGlow)"/>
-      <path d="M0,420 Q150,380 300,410 T600,390 L600,600 L0,600 Z" fill="url(%23waterMirror)"/>
-      <polygon points="120,380 150,320 220,320 250,380" fill="%231E293B" opacity="0.85"/>
-      <circle cx="185" cy="340" r="14" fill="%23F59E0B" filter="url(%23manaGlow)"/>
-      <circle cx="130" cy="220" r="4" fill="%2393C5FD" filter="url(%23manaGlow)"/>
-      <circle cx="270" cy="150" r="4.5" fill="%23FDE68A" filter="url(%23manaGlow)"/>
-      <circle cx="370" cy="250" r="3" fill="%23F472B6" filter="url(%23manaGlow)"/>
-      <circle cx="450" cy="310" r="3.5" fill="%2367E8F9" filter="url(%23manaGlow)"/>
-      <path d="M40,600 Q60,520 80,600 M120,600 Q140,500 160,600 M240,600 Q260,530 280,600 M400,600 Q420,510 440,600 M520,600 Q540,530 560,600" stroke="%230F172A" stroke-width="4"/>
-    </svg>`;
-  }
-
-  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
-    <defs>
-      <linearGradient id="scenicSky" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" stop-color="%2338BDF8"/>
-        <stop offset="40%" stop-color="%237DD3FC"/>
-        <stop offset="85%" stop-color="%23E0F2FE"/>
-        <stop offset="100%" stop-color="%23FEF3C7"/>
-      </linearGradient>
-      <linearGradient id="meadowGrass" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" stop-color="%2384CC16"/>
-        <stop offset="40%" stop-color="%2365A30D"/>
-        <stop offset="100%" stop-color="%233F6212"/>
-      </linearGradient>
-      <filter id="softGlow">
-        <feGaussianBlur stdDeviation="6" result="blur"/>
-        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-      </filter>
-    </defs>
-    <rect width="600" height="600" fill="url(%23scenicSky)"/>
-    <circle cx="170" cy="230" r="95" fill="%23FFFFFF" opacity="0.95"/>
-    <circle cx="280" cy="190" r="125" fill="%23FFFFFF" opacity="0.98"/>
-    <circle cx="410" cy="240" r="105" fill="%23FFFFFF" opacity="0.92"/>
-    <circle cx="290" cy="265" r="115" fill="%23EFF6FF" opacity="0.9"/>
-    <polygon points="0,410 180,310 360,420" fill="%2393C5FD" opacity="0.6"/>
-    <polygon points="220,420 400,280 600,430" fill="%2360A5FA" opacity="0.45"/>
-    <path d="M0,390 Q200,330 420,370 T600,350 L600,600 L0,600 Z" fill="url(%23meadowGrass)"/>
-    <rect x="220" y="315" width="18" height="155" fill="%2394A3B8"/>
-    <rect x="360" y="315" width="18" height="155" fill="%2364748B"/>
-    <polygon points="190,315 410,315 400,300 200,300" fill="%23475569"/>
-    <polygon points="205,335 395,335 390,325 210,325" fill="%2364748B"/>
-    <ellipse cx="230" cy="380" rx="8" ry="14" fill="%234D7C0F"/>
-    <ellipse cx="370" cy="410" rx="7" ry="16" fill="%234D7C0F"/>
-    <circle cx="155" cy="375" r="4" fill="%2360A5FA" filter="url(%23softGlow)"/>
-    <circle cx="265" cy="325" r="3" fill="%2393C5FD" filter="url(%23softGlow)"/>
-    <circle cx="335" cy="355" r="4.5" fill="%23FDE68A" filter="url(%23softGlow)"/>
-    <circle cx="455" cy="415" r="3.5" fill="%23F472B6" filter="url(%23softGlow)"/>
-  </svg>`;
-}
-
-// ============================================================================
-// 3. INTERACTIVE 3D WAYPOINT CARD
-// ============================================================================
-function WaypointCard3D({ card, onClick, isInspecting = false }) {
-  const cardRef = useRef(null);
-  const [rotateX, setRotateX] = useState(0);
-  const [rotateY, setRotateY] = useState(0);
-  const [glintPos, setGlintPos] = useState({ x: 50, y: 50 });
-  const [isHovered, setIsHovered] = useState(false);
-
-  const handleMouseMove = (e) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-
-    const mult = isInspecting ? 22 : 12;
-    const rotX = ((y - centerY) / centerY) * -mult;
-    const rotY = ((x - centerX) / centerX) * mult;
-
-    setRotateX(rotX);
-    setRotateY(rotY);
-    setGlintPos({
-      x: (x / rect.width) * 100,
-      y: (y / rect.height) * 100
-    });
-  };
-
-  const isUnlocked = card.checkedIn;
-
-  return (
-    <div 
-      className="perspective-1000 select-none cursor-pointer"
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => {
-        setIsHovered(false);
-        setRotateX(0);
-        setRotateY(0);
-      }}
-      onClick={onClick}
-      style={{ perspective: '1200px' }}
-    >
-      <div
-        ref={cardRef}
-        style={{
-          transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg) ${isHovered ? 'scale(1.025)' : 'scale(1)'}`,
-          transition: isHovered ? 'transform 0.08s ease-out' : 'transform 0.4s ease-out',
-          transformStyle: 'preserve-3d'
-        }}
-        className={`relative rounded-3xl p-4 transition-all duration-300 overflow-hidden ${
-          isUnlocked
-            ? 'bg-gradient-to-b from-[#181824] via-[#101018] to-black text-amber-50 border-2 border-amber-300/80 shadow-2xl hover:shadow-amber-400/25 ring-1 ring-amber-500/30'
-            : 'bg-stone-900/90 backdrop-blur-md text-stone-400 border border-stone-800 shadow-xl hover:border-stone-700'
-        }`}
-      >
-        {isUnlocked && (
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity duration-300 z-30"
-            style={{
-              opacity: isHovered ? 0.75 : 0.35,
-              background: `radial-gradient(circle at ${glintPos.x}% ${glintPos.y}%, rgba(254, 240, 138, 0.4) 0%, rgba(244, 114, 182, 0.3) 25%, rgba(96, 165, 250, 0.25) 50%, transparent 80%)`,
-              mixBlendMode: 'color-dodge'
-            }}
-          />
-        )}
-
-        <div className="flex items-center justify-between text-xs relative z-20" style={{ transform: 'translateZ(25px)' }}>
-          <div className="flex items-center gap-1.5">
-            <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full ${
-              isUnlocked ? 'bg-amber-400 text-stone-950 font-mono shadow-xs' : 'bg-stone-800 text-stone-500'
-            }`}>
-              {card.cityName}
-            </span>
-            <span className="text-[10px] text-amber-300 font-mono flex items-center gap-0.5">
-              <Zap className="w-3 h-3 text-amber-400" /> {card.manaResonance || 880} MP
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <span className={`text-[9px] font-black px-2 py-0.5 rounded-md font-mono ${
-              card.rarity === 'Mythic Grimoire' ? 'bg-gradient-to-r from-purple-500 via-rose-500 to-amber-500 text-white shadow-xs' :
-              card.rarity === 'Ancient Relic' ? 'bg-amber-400 text-slate-950 font-bold' :
-              'bg-sky-600 text-white'
-            }`}>
-              {card.rarity}
-            </span>
-          </div>
-        </div>
-
-        <div 
-          className="relative mt-3 rounded-2xl overflow-hidden aspect-square border border-amber-300/30 bg-stone-950 flex items-center justify-center shadow-inner group"
-          style={{ transform: 'translateZ(35px)' }}
-        >
-          {isUnlocked ? (
-            <>
-              <img 
-                src={card.artworkUrl} 
-                alt={card.title}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-              />
-              {card.isGeneratingArt && (
-                <div className="absolute inset-0 bg-black/80 backdrop-blur-xs flex flex-col items-center justify-center text-amber-200 text-xs p-3 text-center">
-                  <RefreshCw className="w-5 h-5 animate-spin mb-1 text-amber-300" />
-                  <span className="font-bold">Conjuring Landscape Scenery...</span>
-                </div>
-              )}
-              <div className="absolute bottom-2.5 right-2.5 bg-black/75 backdrop-blur-md px-2.5 py-0.5 rounded-lg text-[9px] font-bold text-amber-200 flex items-center gap-1 border border-white/20">
-                <Feather className="w-3 h-3 text-sky-400" /> Watercolor Scenery
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center p-6 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-stone-800/80 border border-stone-700/80 flex items-center justify-center shadow-lg mb-2 group-hover:scale-110 transition duration-300">
-                <Lock className="w-6 h-6 text-stone-500" />
-              </div>
-              <span className="text-[11px] font-black uppercase tracking-widest text-stone-400">
-                Waypoint Seal Active
-              </span>
-              <span className="text-[10px] text-stone-500 mt-0.5">
-                Check in on-site to break seal
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-3.5 relative z-20" style={{ transform: 'translateZ(20px)' }}>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[10px] text-amber-300/90 font-bold uppercase tracking-wider">{card.category}</span>
-            <div className="flex text-amber-400 text-xs">
-              {Array.from({ length: card.stars || 5 }).map((_, i) => (
-                <span key={i}>★</span>
-              ))}
-            </div>
-          </div>
-
-          <h3 className={`font-black text-sm mt-0.5 truncate ${isUnlocked ? 'text-white' : 'text-stone-400'}`}>
-            {card.title}
-          </h3>
-          <p className="text-[11px] text-amber-200/70 font-serif truncate">
-            {card.titleJa}
-          </p>
-
-          {isUnlocked && card.notes && (
-            <p className="text-[10px] text-stone-300 italic mt-1 line-clamp-1 bg-stone-800/60 px-2 py-1 rounded-lg border border-stone-800">
-              "{card.notes}"
-            </p>
-          )}
-        </div>
-
-        <div 
-          className="mt-3.5 pt-2.5 border-t border-stone-800/80 flex items-center justify-between text-xs relative z-20"
-          style={{ transform: 'translateZ(15px)' }}
-        >
-          {isUnlocked ? (
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[10px] text-emerald-300 font-bold truncate max-w-[130px]">
-                Recorded: {card.unlockedAt}
-              </span>
-            </div>
-          ) : (
-            <span className="text-[10px] text-stone-500 uppercase font-bold">
-              Unexplored Realm
-            </span>
-          )}
-
-          <div className="flex items-center gap-1 text-[10px] font-bold text-amber-300">
-            <Eye className="w-3.5 h-3.5" />
-            <span>Examine Card</span>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// 4. INITIAL DEFAULT CITIES & TRAVELERS
-// ============================================================================
 const DEFAULT_CITIES = [
   {
     id: 'fukuoka',
@@ -510,43 +142,34 @@ const DEFAULT_CITIES = [
 ];
 
 const DEFAULT_TRAVELERS = [
-  { id: 't1', name: 'Lubelter', avatar: '⚡', role: 'Mage Navigator' },
-  { id: 't2', name: 'Khai', avatar: '🍃', role: 'Party Vanguard' }
+  { id: 't1', name: 'Lubelter', avatar: '⚡', role: 'Navigator' },
+  { id: 't2', name: 'Khai', avatar: '🍃', role: 'Vanguard' }
 ];
 
 const DEFAULT_CONTRIBUTIONS = [
   { id: 'c1', travelerId: 't1', amountJPY: 15000, date: 'Oct 23', note: 'Trip Pot Initial Deposit' },
-  { id: 'c2', travelerId: 't2', amountJPY: 15000, date: 'Oct 23', note: 'Trip Pot Initial Deposit' },
-  { id: 'c3', travelerId: 't1', amountJPY: 3000, date: 'Oct 24', note: 'Yatai Food Fund' },
-  { id: 'c4', travelerId: 't2', amountJPY: 3000, date: 'Oct 24', note: 'Yatai Food Fund' }
+  { id: 'c2', travelerId: 't2', amountJPY: 15000, date: 'Oct 23', note: 'Trip Pot Initial Deposit' }
 ];
 
-// ============================================================================
-// 5. MAIN WAYPOINT APPLICATION COMPONENT
-// ============================================================================
 export default function App() {
   const [activeTab, setActiveTab] = useState('places');
   const [now, setNow] = useState(new Date());
 
-  // Cloud Sync (Supabase Credentials)
   const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('waypoint_supabase_url') || 'https://rplthksiyiwlqjcjazto.supabase.co');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState(() => localStorage.getItem('waypoint_supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwbHRoa3NpeWl3bHFqY2phenRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3Njg1NDIsImV4cCI6MjEwODM0NDU0Mn0.CyVoRZ9yVQYZYykYANg94dLPBe_kxLeexh9kHEj8dsM');
   const [cloudSyncStatus, setCloudSyncStatus] = useState('syncing');
 
   const supabaseRef = useRef(null);
 
-  // Initialize Supabase Client
   useEffect(() => {
     if (supabaseUrl && supabaseAnonKey) {
-      const client = getSupabaseClient(supabaseUrl, supabaseAnonKey);
-      supabaseRef.current = client;
+      supabaseRef.current = getSupabaseClient(supabaseUrl, supabaseAnonKey);
     } else {
       supabaseRef.current = null;
       setCloudSyncStatus('offline');
     }
   }, [supabaseUrl, supabaseAnonKey]);
 
-  // Travelers
   const [travelers, setTravelers] = useState(() => {
     try {
       const s = localStorage.getItem('waypoint_travelers');
@@ -555,7 +178,6 @@ export default function App() {
   });
   const [activeTravelerId, setActiveTravelerId] = useState(() => travelers[0]?.id || 't1');
 
-  // Cities
   const [cities, setCities] = useState(() => {
     try {
       const s = localStorage.getItem('waypoint_cities');
@@ -564,7 +186,6 @@ export default function App() {
   });
   const [activeCityId, setActiveCityId] = useState(() => cities[0]?.id || 'fukuoka');
 
-  // Places To Visit (Initialized Empty to wait for Cloud Sync)
   const [places, setPlaces] = useState(() => {
     try {
       const s = localStorage.getItem('waypoint_places');
@@ -573,7 +194,6 @@ export default function App() {
   });
   const [placesFilter, setPlacesFilter] = useState('all');
 
-  // Common Kitty Financials (Initialized Empty to wait for Cloud Sync)
   const [expenses, setExpenses] = useState(() => {
     try {
       const s = localStorage.getItem('waypoint_expenses');
@@ -589,33 +209,27 @@ export default function App() {
   });
   const [ratePer100Jpy] = useState(3.12);
 
-  // Gemini API Configuration
   const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('waypoint_gemini_key') || '');
-  const [selectedGeminiModel, setSelectedGeminiModel] = useState(() => localStorage.getItem('waypoint_gemini_model') || 'gemini-3.8-flash');
+  const [selectedGeminiModel, setSelectedGeminiModel] = useState(() => localStorage.getItem('waypoint_gemini_model') || 'gemini-2.5-flash');
   const [showApiSettingsModal, setShowApiSettingsModal] = useState(false);
 
-  // Modals & UI States
   const [showAddPlaceModal, setShowAddPlaceModal] = useState(false);
-  const [inspectedCard, setInspectedCard] = useState(null);
   const [showManageTravelers, setShowManageTravelers] = useState(false);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showEditCityModal, setShowEditCityModal] = useState(null);
   const [showNewCityModal, setShowNewCityModal] = useState(false);
-  const [soundMuted, setSoundMuted] = useState(false);
 
-  // AI Chat
   const [aiLog, setAiLog] = useState([
     {
       role: 'assistant',
-      text: "Greetings, travelers. I am your Waypoint AI Travel Companion. I monitor your city checklists, Waypoint Deck landscapes, and Common Kitty reserves. What spell of guidance may I cast for you today?"
+      text: "Greetings. I am your Waypoint travel companion. I track your destinations, schedule, and Common Kitty. How can I help you today?"
     }
   ]);
   const [aiInput, setAiInput] = useState('');
   const [isAiThinking, setIsAiThinking] = useState(false);
   const chatEndRef = useRef(null);
 
-  // Local Storage Persistence
   useEffect(() => localStorage.setItem('waypoint_travelers', JSON.stringify(travelers)), [travelers]);
   useEffect(() => localStorage.setItem('waypoint_cities', JSON.stringify(cities)), [cities]);
   useEffect(() => localStorage.setItem('waypoint_places', JSON.stringify(places)), [places]);
@@ -626,94 +240,75 @@ export default function App() {
   useEffect(() => localStorage.setItem('waypoint_supabase_url', supabaseUrl), [supabaseUrl]);
   useEffect(() => localStorage.setItem('waypoint_supabase_key', supabaseAnonKey), [supabaseAnonKey]);
 
-  // Real-Time Supabase Sync Handlers
-  useEffect(() => {
+  const syncFromCloud = useCallback(async () => {
     if (!supabaseRef.current) return;
-    const client = supabaseRef.current;
+    try {
+      setCloudSyncStatus('syncing');
 
-    const syncFromCloud = async () => {
-      try {
-        setCloudSyncStatus('syncing');
-
-        // 1. Fetch places
-        const { data: cloudPlaces, error: pErr } = await client.from('trip_places').select('*');
-        if (!pErr && Array.isArray(cloudPlaces)) {
-          const mappedPlaces = cloudPlaces.map(cp => ({
-            id: cp.id,
-            cityId: cp.city || cp.cityId || 'fukuoka',
-            title: cp.name || cp.title,
-            titleJa: cp.jp_name || cp.titleJa || '',
-            category: cp.category || 'Shrines & Temples',
-            timeOfDay: cp.time_of_day || cp.timeOfDay || 'Morning',
-            costJPY: Number(cp.est_cost || cp.costJPY || 0),
-            checkedIn: !!(cp.visited || cp.checkedIn),
-            checkedInBy: cp.checked_in_by || cp.checkedInBy || null,
-            unlockedAt: cp.unlocked_at || cp.unlockedAt || null,
-            address: cp.address || 'Japan',
-            notes: cp.notes || '',
-            rarity: cp.rarity || 'Ancient Relic',
-            manaResonance: cp.mana_resonance || 880,
-            stars: 5,
-            cardBio: cp.card_bio || `A quiet scenic destination in ${cp.city || 'Japan'} steeped in gentle skies.`,
-            artworkUrl: cp.image_url || cp.artworkUrl || generateProceduralLandscapeArt(cp.name || cp.title, cp.category)
-          }));
-          setPlaces(mappedPlaces);
-          localStorage.setItem('waypoint_places', JSON.stringify(mappedPlaces));
-        }
-
-        // 2. Fetch expenses (Directly replace with cloud list)
-        const { data: cloudExpenses, error: eErr } = await client.from('trip_expenses').select('*');
-        if (!eErr && Array.isArray(cloudExpenses)) {
-          const mappedExpenses = cloudExpenses.map(ce => ({
-            id: ce.id,
-            title: ce.title,
-            amountJPY: Number(ce.amount_jpy || ce.amountJPY || 0),
-            category: ce.category || 'Ramen & Dining',
-            paymentMethod: ce.is_kitty ? 'kitty' : 'personal',
-            paidBy: ce.paid_by || null,
-            date: ce.date || new Date(ce.created_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-          }));
-          setExpenses(mappedExpenses);
-          localStorage.setItem('waypoint_expenses', JSON.stringify(mappedExpenses));
-        }
-
-        setCloudSyncStatus('connected');
-      } catch (err) {
-        console.warn('Initial cloud sync error:', err);
-        setCloudSyncStatus('offline');
+      const { data: cloudPlaces, error: pErr } = await supabaseRef.current.from('trip_places').select('*');
+      if (!pErr && Array.isArray(cloudPlaces)) {
+        const mappedPlaces = cloudPlaces.map(cp => ({
+          id: cp.id,
+          cityId: cp.city || cp.cityId || 'fukuoka',
+          title: cp.name || cp.title,
+          titleJa: cp.jp_name || cp.titleJa || '',
+          category: cp.category || 'Shrines & Temples',
+          timeOfDay: cp.time_of_day || cp.timeOfDay || 'Morning',
+          costJPY: Number(cp.est_cost || cp.costJPY || 0),
+          checkedIn: !!(cp.visited || cp.checkedIn),
+          checkedInBy: cp.checked_in_by || cp.checkedInBy || null,
+          unlockedAt: cp.unlocked_at || cp.unlockedAt || null,
+          address: cp.address || 'Japan',
+          notes: cp.notes || ''
+        }));
+        setPlaces(mappedPlaces);
+        localStorage.setItem('waypoint_places', JSON.stringify(mappedPlaces));
       }
-    };
 
+      const { data: cloudExpenses, error: eErr } = await supabaseRef.current.from('trip_expenses').select('*');
+      if (!eErr && Array.isArray(cloudExpenses)) {
+        const mappedExpenses = cloudExpenses.map(ce => ({
+          id: ce.id,
+          title: ce.title,
+          amountJPY: Number(ce.amount_jpy || ce.amountJPY || 0),
+          category: ce.category || 'Ramen & Dining',
+          paymentMethod: ce.is_kitty ? 'kitty' : 'personal',
+          paidBy: ce.paid_by || null,
+          date: ce.date || new Date(ce.created_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        }));
+        setExpenses(mappedExpenses);
+        localStorage.setItem('waypoint_expenses', JSON.stringify(mappedExpenses));
+      }
+
+      setCloudSyncStatus('connected');
+    } catch {
+      setCloudSyncStatus('offline');
+    }
+  }, []);
+
+  useEffect(() => {
     syncFromCloud();
 
-    // Listen to real-time broadcast changes
     let channel = null;
-    try {
-      channel = client
-        .channel('waypoint-realtime-channel')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_places' }, () => {
-          syncFromCloud();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_expenses' }, () => {
-          syncFromCloud();
-        })
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            setCloudSyncStatus('connected');
-          }
-        });
-    } catch (e) {
-      console.warn('Realtime subscription error:', e);
+    if (supabaseRef.current) {
+      try {
+        channel = supabaseRef.current
+          .channel('waypoint-realtime')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_places' }, () => syncFromCloud())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_expenses' }, () => syncFromCloud())
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') setCloudSyncStatus('connected');
+          });
+      } catch {}
     }
 
     return () => {
-      if (channel && client.removeChannel) {
-        client.removeChannel(channel);
+      if (channel && supabaseRef.current?.removeChannel) {
+        supabaseRef.current.removeChannel(channel);
       }
     };
-  }, [supabaseUrl, supabaseAnonKey]);
+  }, [supabaseUrl, supabaseAnonKey, syncFromCloud]);
 
-  // Live Clock
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
@@ -735,7 +330,6 @@ export default function App() {
   const currentCity = useMemo(() => cities[activeCityIndex] || cities[0] || DEFAULT_CITIES[0], [cities, activeCityIndex]);
   const nextCity = useMemo(() => cities[activeCityIndex + 1] || null, [cities, activeCityIndex]);
 
-  // Countdown Timers
   const timers = useMemo(() => {
     if (!cities || cities.length === 0) return { tripD: 0, tripH: 0, tripM: 0, tripS: 0, nextD: 0, nextH: 0, nextM: 0, nextS: 0, pctCity: 0, isFinal: false };
     const curTime = now.getTime();
@@ -762,7 +356,6 @@ export default function App() {
     return { tripD, tripH, tripM, tripS, nextD, nextH, nextM, nextS, pctCity, isFinal: !nextCity };
   }, [cities, currentCity, nextCity, now]);
 
-  // Financial Stats
   const kittyStats = useMemo(() => {
     const totalDeposited = contributions.reduce((s, c) => s + Number(c.amountJPY || 0), 0);
     let kittySpent = 0;
@@ -797,7 +390,6 @@ export default function App() {
     };
   }, [contributions, expenses]);
 
-  // Places for active city
   const activeCityPlaces = useMemo(() => {
     return places.filter(p => p.cityId === activeCityId);
   }, [places, activeCityId]);
@@ -810,11 +402,8 @@ export default function App() {
 
   const completedCount = activeCityPlaces.filter(p => p.checkedIn).length;
 
-  // Toggle Check-in Place & Unlock Card
   const handleToggleCheckIn = useCallback(async (placeId) => {
     const activeTraveler = travelers.find(t => t.id === activeTravelerId);
-    cardAudio.playFoilUnlock();
-
     let targetUpdated = null;
 
     setPlaces(prev => prev.map(p => {
@@ -827,9 +416,6 @@ export default function App() {
           unlockedAt: nextState ? new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
         };
         targetUpdated = updated;
-        if (inspectedCard && inspectedCard.id === placeId) {
-          setInspectedCard(updated);
-        }
         return updated;
       }
       return p;
@@ -844,15 +430,11 @@ export default function App() {
           jp_name: targetUpdated.titleJa,
           category: targetUpdated.category,
           visited: targetUpdated.checkedIn,
-          card_unlocked: targetUpdated.checkedIn,
-          notes: targetUpdated.notes,
-          image_url: targetUpdated.artworkUrl
+          notes: targetUpdated.notes
         });
-      } catch (e) {
-        console.warn('Failed to sync place check-in to cloud:', e);
-      }
+      } catch {}
     }
-  }, [activeTravelerId, travelers, inspectedCard]);
+  }, [activeTravelerId, travelers]);
 
   const getMapsUrl = (destTitle, destAddress) => {
     const origin = encodeURIComponent(`${currentCity.hotelName}, ${currentCity.hotelAddress}`);
@@ -860,89 +442,20 @@ export default function App() {
     return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=transit`;
   };
 
-  // Reset Kitty Pool & Clear Expenses
   const handleResetKitty = async () => {
-    const confirmReset = window.confirm("Reset Common Kitty? This will clear all deposits and logged expenses back to ¥0.");
-    if (!confirmReset) return;
-
+    if (!window.confirm("Reset Common Kitty back to ¥0?")) return;
     setContributions([]);
     setExpenses([]);
     localStorage.removeItem('waypoint_contribs');
     localStorage.removeItem('waypoint_expenses');
-    cardAudio.playClick();
 
     if (supabaseRef.current) {
       try {
         await supabaseRef.current.from('trip_expenses').delete().neq('id', '0');
-      } catch (err) {
-        console.warn('Could not clear Supabase kitty tables:', err);
-      }
+      } catch {}
     }
   };
 
-  // Generate Landscape Scenery Art via Gemini API
-  const handleGenerateLandscapeArt = async (card) => {
-    cardAudio.playClick();
-
-    setPlaces(prev => prev.map(p => p.id === card.id ? { ...p, isGeneratingArt: true } : p));
-    if (inspectedCard && inspectedCard.id === card.id) {
-      setInspectedCard(prev => ({ ...prev, isGeneratingArt: true }));
-    }
-
-    const apiKey = geminiApiKey || "";
-    let finalUrl = null;
-
-    const prompt = `A breathtaking fantasy anime watercolor landscape illustration of ${card.title} in ${currentCity.name}, Japan. In the artistic background style of Frieren Beyond Journeys End and Studio Ghibli. Empty landscape scenery only, absolutely no people and no human figures. Soft golden hour sunlight, towering bright white cumulus clouds in a cerulean sky, moss-covered ancient stone structures, peaceful hills and wildflowers, floating luminous blue mana motes drifting gently in the breeze. Studio anime scenery wallpaper, 8k resolution, serene natural world masterwork.`;
-
-    if (apiKey) {
-      try {
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`;
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: {
-              responseModalities: ['IMAGE'],
-              imageConfig: { aspectRatio: "1:1" }
-            }
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-          if (part && part.inlineData?.data) {
-            finalUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-          }
-        }
-      } catch (err) {
-        console.warn('Gemini image direct call bypassed, generating custom scenery art...');
-      }
-    }
-
-    if (!finalUrl) {
-      finalUrl = generateProceduralLandscapeArt(card.title, card.category);
-    }
-
-    setPlaces(prev => prev.map(p => p.id === card.id ? { ...p, artworkUrl: finalUrl, isGeneratingArt: false } : p));
-    if (inspectedCard && inspectedCard.id === card.id) {
-      setInspectedCard(prev => ({ ...prev, artworkUrl: finalUrl, isGeneratingArt: false }));
-    }
-
-    if (supabaseRef.current) {
-      supabaseRef.current.from('trip_places').upsert({
-        id: card.id,
-        city: card.cityId,
-        name: card.title,
-        image_url: finalUrl
-      }).catch(console.warn);
-    }
-
-    cardAudio.playFoilUnlock();
-  };
-
-  // AI Chat with Gemini Pro / Flash model engine
   const handleAiSend = async (forcedText = null) => {
     const text = (forcedText || aiInput).trim();
     if (!text) return;
@@ -955,22 +468,19 @@ export default function App() {
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
 
     const contextPayload = {
-      companionMinds: travelers.map(t => `${t.name} (${t.avatar} - ${t.role})`),
+      travelers: travelers.map(t => `${t.name} (${t.role})`),
       activeTraveler: travelers.find(t => t.id === activeTravelerId)?.name,
-      currentCityLeg: currentCity.name,
+      currentCity: currentCity.name,
       hotelBase: `${currentCity.hotelName} near ${currentCity.station}`,
-      nextCityTransit: nextCity ? `Departing to ${nextCity.name} in ${timers.nextD}d ${timers.nextH}h` : 'Final City Leg',
       kittyRemainingJPY: `¥${kittyStats.remaining.toLocaleString()} (~RM ${jpyToMyr(kittyStats.remaining)})`,
-      totalPlacesInThisCity: activeCityPlaces.length,
-      placesToVisit: activeCityPlaces.filter(p => !p.checkedIn).map(p => `${p.title} (${p.category} - ${p.timeOfDay})`),
+      placesToVisit: activeCityPlaces.filter(p => !p.checkedIn).map(p => `${p.title} (${p.category})`),
       alreadyVisited: activeCityPlaces.filter(p => p.checkedIn).map(p => p.title)
     };
 
-    const systemPrompt = `You are the personal Travel AI Assistant in Waypoint, an elegant travel companion app.
-Model Engine: ${modelToUse} (Gemini Status Active).
-LIVE APP TELEMETRY FOR ${currentCity.name.toUpperCase()}:
+    const systemPrompt = `You are the travel companion in Waypoint.
+LIVE STATUS FOR ${currentCity.name.toUpperCase()}:
 ${JSON.stringify(contextPayload, null, 2)}
-Respond with warmth, practical transit and timing tips, food recommendations, and serene travel philosophy.`;
+Respond with practical transit tips, timing advice, food specialties, and concise itinerary recommendations.`;
 
     try {
       const response = await fetch(apiUrl, {
@@ -983,10 +493,10 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
         })
       });
       const data = await response.json();
-      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "The mana flow was interrupted; unable to cast response.";
+      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Unable to retrieve advice.";
       setAiLog(prev => [...prev, { role: 'assistant', text: reply }]);
     } catch {
-      setAiLog(prev => [...prev, { role: 'assistant', text: `Failed to query ${modelToUse}. Please check your Gemini API key in Settings.` }]);
+      setAiLog(prev => [...prev, { role: 'assistant', text: "Request failed. Please check your Gemini API key in Settings." }]);
     } finally {
       setIsAiThinking(false);
     }
@@ -995,14 +505,13 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
   return (
     <div className="min-h-screen bg-[#FDFBF7] text-slate-900 font-sans flex flex-col pb-24 selection:bg-amber-100 selection:text-amber-900">
       
-      {/* TOP HEADER */}
+      {/* HEADER */}
       <header className="sticky top-0 z-40 bg-[#FDFBF7]/95 backdrop-blur-md border-b border-stone-200/80 px-4 py-2.5">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
           
-          {/* Logo & City Selector */}
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-600 via-indigo-600 to-amber-500 text-white flex items-center justify-center font-black text-sm shadow-sm ring-2 ring-amber-300">
-              <Compass className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-sm shadow-sm">
+              <Compass className="w-4 h-4 text-amber-400" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -1019,10 +528,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                 
                 <select
                   value={activeCityId}
-                  onChange={(e) => {
-                    setActiveCityId(e.target.value);
-                    cardAudio.playClick();
-                  }}
+                  onChange={(e) => setActiveCityId(e.target.value)}
                   className="text-[11px] font-bold bg-stone-100 border border-stone-200 text-stone-800 rounded-md px-1.5 py-0.5 focus:outline-none cursor-pointer ml-1"
                 >
                   {cities.map(c => (
@@ -1036,22 +542,25 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
             </div>
           </div>
 
-          {/* Traveler Profiles & Settings */}
           <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => syncFromCloud()}
+              className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs border border-stone-200"
+              title="Force Refresh Data"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+
             <div className="flex bg-stone-100 p-0.5 rounded-lg border border-stone-200 text-xs">
               {travelers.map(t => (
                 <button
                   key={t.id}
-                  onClick={() => {
-                    setActiveTravelerId(t.id);
-                    cardAudio.playClick();
-                  }}
+                  onClick={() => setActiveTravelerId(t.id)}
                   className={`px-2 py-1 rounded-md text-[11px] font-medium transition flex items-center gap-1 ${
                     activeTravelerId === t.id 
                       ? 'bg-white text-slate-900 shadow-xs font-semibold' 
                       : 'text-stone-500 hover:text-stone-800'
                   }`}
-                  title={`${t.name} (${t.role})`}
                 >
                   <span>{t.avatar}</span>
                   <span className="max-w-[70px] truncate">{t.name}</span>
@@ -1062,33 +571,25 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
             <button
               onClick={() => setShowManageTravelers(true)}
               className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs border border-stone-200"
-              title="Add or Edit Travelers"
+              title="Manage Travelers"
             >
               <Users className="w-3.5 h-3.5" />
             </button>
 
             <button
               onClick={() => setShowApiSettingsModal(true)}
-              className={`p-1.5 rounded-lg border text-xs flex items-center gap-1 transition ${
-                geminiApiKey || supabaseUrl
-                  ? 'bg-amber-50 border-amber-300 text-amber-800 font-bold' 
-                  : 'bg-stone-100 border-stone-200 text-stone-600'
-              }`}
-              title="Configure Gemini & Supabase Cloud Sync"
+              className="p-1.5 rounded-lg border border-stone-200 bg-stone-100 hover:bg-stone-200 text-stone-600 text-xs"
+              title="Settings"
             >
               <Sliders className="w-3.5 h-3.5" />
-              <span className="text-[10px] hidden sm:inline">
-                {selectedGeminiModel.replace('gemini-', '')}
-              </span>
             </button>
           </div>
 
         </div>
 
-        {/* TIMERS BAR */}
+        {/* TIMERS */}
         <div className="max-w-4xl mx-auto mt-2 pt-2 border-t border-stone-100 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-          
-          <div className="bg-amber-50/90 border border-amber-200/80 rounded-xl px-3 py-2 flex flex-col justify-between shadow-2xs">
+          <div className="bg-amber-50/90 border border-amber-200/80 rounded-xl px-3 py-2 flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase font-bold text-amber-800 flex items-center gap-1">
                 <Train className="w-3.5 h-3.5 text-amber-600" />
@@ -1100,7 +601,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
             </div>
             
             <div className="flex items-baseline justify-between mt-1">
-              <span className="font-extrabold text-slate-900 text-sm tracking-tight font-mono">
+              <span className="font-extrabold text-slate-900 text-sm font-mono">
                 {timers.isFinal ? 'Tour Concluded' : `${timers.nextD}d ${timers.nextH}h ${timers.nextM}m ${timers.nextS}s`}
               </span>
               <span className="text-[10px] font-medium text-stone-500">
@@ -1116,25 +617,23 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
             </div>
           </div>
 
-          <div className="bg-stone-50 border border-stone-200/90 rounded-xl px-3 py-2 flex flex-col justify-between shadow-2xs">
+          <div className="bg-stone-50 border border-stone-200/90 rounded-xl px-3 py-2 flex flex-col justify-between">
             <span className="text-[10px] uppercase font-bold text-stone-500 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-stone-600" />
-              Total Time Left on Trip
+              Total Time Left
             </span>
             <div className="flex items-baseline justify-between mt-1">
-              <span className="font-extrabold text-slate-900 text-sm tracking-tight font-mono">
+              <span className="font-extrabold text-slate-900 text-sm font-mono">
                 {timers.tripD}d {timers.tripH}h {timers.tripM}m {timers.tripS}s
               </span>
-              <span className="text-[10px] text-stone-400">
-                Ends Nov 03
-              </span>
+              <span className="text-[10px] text-stone-400">Ends Nov 03</span>
             </div>
             <div className="text-[10px] text-stone-400 mt-0.5 truncate">
               {cities.map(c => c.name).join(' ➔ ')}
             </div>
           </div>
 
-          <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl px-3 py-2 flex flex-col justify-between shadow-2xs">
+          <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl px-3 py-2 flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase font-bold text-emerald-800 flex items-center gap-1">
                 <Coins className="w-3.5 h-3.5 text-emerald-600" />
@@ -1157,11 +656,10 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
               <span>Spent: ¥{kittyStats.kittySpent.toLocaleString()}</span>
             </div>
           </div>
-
         </div>
       </header>
 
-      {/* MAIN VIEWPORT TABS */}
+      {/* MAIN VIEWPORT */}
       <main className="flex-1 max-w-4xl w-full mx-auto p-4 space-y-4">
         
         {/* TAB 1: PLACES */}
@@ -1183,7 +681,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                     Places To Visit in {currentCity.name}
                   </h2>
                   <p className="text-xs text-stone-500 mt-0.5">
-                    Base Lodging: <span className="font-bold text-slate-800">{currentCity.hotelName}</span> ({currentCity.station})
+                    Base Lodging: <span className="font-bold text-slate-800">{currentCity.hotelName}</span>
                   </p>
                 </div>
 
@@ -1192,7 +690,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                   className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition"
                 >
                   <Plus className="w-4 h-4 text-amber-400" />
-                  + Add Place to Visit
+                  + Add Place
                 </button>
               </div>
 
@@ -1206,10 +704,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                   return (
                     <button
                       key={c.id}
-                      onClick={() => {
-                        setActiveCityId(c.id);
-                        cardAudio.playClick();
-                      }}
+                      onClick={() => setActiveCityId(c.id)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
                         isCur 
                           ? 'bg-slate-900 text-white shadow-xs' 
@@ -1249,10 +744,10 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                 <div className="text-xs text-stone-500 font-medium">
                   {completedCount === activeCityPlaces.length && activeCityPlaces.length > 0 ? (
                     <span className="text-emerald-600 font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> All {currentCity.name} spots mastered!
+                      <CheckCircle2 className="w-3.5 h-3.5" /> All spots visited!
                     </span>
                   ) : (
-                    <span>{activeCityPlaces.length - completedCount} destinations remaining</span>
+                    <span>{activeCityPlaces.length - completedCount} spots remaining</span>
                   )}
                 </div>
               </div>
@@ -1264,8 +759,8 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                   <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
                     <Compass className="w-5 h-5" />
                   </div>
-                  <h3 className="font-bold text-sm text-slate-800">No places found in this view</h3>
-                  <p className="text-xs text-stone-500">Tap '+ Add Place to Visit' to record destinations for {currentCity.name}!</p>
+                  <h3 className="font-bold text-sm text-slate-800">No places in this view</h3>
+                  <p className="text-xs text-stone-500">Add destinations for {currentCity.name} using the button above.</p>
                 </div>
               ) : (
                 filteredPlaces.map(place => (
@@ -1279,7 +774,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                       <button
                         onClick={() => handleToggleCheckIn(place.id)}
                         className="mt-0.5 text-stone-400 hover:text-emerald-600 transition"
-                        title={place.checkedIn ? 'Mark Unvisited' : 'Mark Visited & Unlock Card'}
                       >
                         {place.checkedIn ? (
                           <CheckCircle2 className="w-6 h-6 text-emerald-600 fill-emerald-100" />
@@ -1323,9 +817,8 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                         )}
 
                         {place.checkedIn && (
-                          <p className="text-[10px] font-bold text-emerald-700 flex items-center gap-1 pt-0.5">
-                            <Sparkles className="w-3 h-3 text-emerald-500" />
-                            Checked in by {place.checkedInBy} on {place.unlockedAt}
+                          <p className="text-[10px] font-bold text-emerald-700 pt-0.5">
+                            ✓ Visited by {place.checkedInBy} on {place.unlockedAt}
                           </p>
                         )}
                       </div>
@@ -1337,7 +830,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                         target="_blank"
                         rel="noopener noreferrer"
                         className="px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold flex items-center gap-1.5 transition"
-                        title={`Transit route from ${currentCity.hotelName}`}
                       >
                         <MapPin className="w-3.5 h-3.5 text-rose-500" />
                         <span>Directions</span>
@@ -1346,29 +838,12 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
 
                       <button
                         onClick={() => {
-                          setInspectedCard(place);
-                          cardAudio.playClick();
-                        }}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition ${
-                          place.checkedIn
-                            ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
-                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                        }`}
-                      >
-                        <BookOpen className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Card</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
                           setPlaces(prev => prev.filter(p => p.id !== place.id));
                           if (supabaseRef.current) {
-                            supabaseRef.current.from('trip_places').delete().eq('id', place.id).catch(console.warn);
+                            supabaseRef.current.from('trip_places').delete().eq('id', place.id).catch(() => {});
                           }
-                          cardAudio.playClick();
                         }}
                         className="p-1.5 text-stone-400 hover:text-rose-600"
-                        title="Delete Spot"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1382,109 +857,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
           </div>
         )}
 
-        {/* TAB 2: DECK */}
-        {activeTab === 'cards' && (
-          <div className="space-y-4">
-            
-            <div className="bg-gradient-to-r from-[#171622] via-[#0E0D16] to-[#171622] text-amber-100 rounded-3xl p-5 shadow-2xl border-2 border-amber-400/80 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-amber-400/10 via-sky-400/10 to-purple-400/10 rounded-full blur-3xl pointer-events-none" />
-
-              <div className="flex items-start justify-between flex-wrap gap-3 relative z-10">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-stone-950 text-[10px] font-black tracking-widest uppercase flex items-center gap-1 shadow-xs">
-                      <Compass className="w-3 h-3" /> Waypoint Deck
-                    </span>
-                    <span className="text-xs text-amber-300 font-mono font-bold flex items-center gap-1">
-                      <Zap className="w-3.5 h-3.5 text-amber-400" /> {places.filter(p => p.checkedIn).reduce((a, b) => a + (b.manaResonance || 880), 0)} Mana Recorded
-                    </span>
-                  </div>
-                  <h2 className="text-xl font-black tracking-tight text-white mt-1.5 flex items-center gap-2">
-                    Waypoint Deck • Scenery & Memories
-                  </h2>
-                  <p className="text-xs text-stone-300 mt-0.5 max-w-lg">
-                    Pure fantasy watercolor landscape art. Check off destinations to unlock cards with interactive 3D holographic tilt!
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      const nextMute = !soundMuted;
-                      setSoundMuted(nextMute);
-                      cardAudio.muted = nextMute;
-                    }}
-                    className="p-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-stone-700 text-xs"
-                    title="Toggle Audio Chimes"
-                  >
-                    {soundMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                  </button>
-
-                  <button
-                    onClick={() => setShowAddPlaceModal(true)}
-                    className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-md transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    + New Spot / Card
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 pt-3.5 border-t border-stone-800/80 flex items-center justify-between text-xs relative z-10 flex-wrap gap-2">
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-amber-300 text-sm font-mono">
-                    {places.filter(p => p.checkedIn).length} / {places.length} Landscapes Captured
-                  </span>
-                  <span className="text-stone-400 text-[11px]">
-                    ({Math.round((places.filter(p => p.checkedIn).length / Math.max(1, places.length)) * 100)}% Mastered)
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  {['all', 'fukuoka', 'kyoto', 'osaka'].map(cf => (
-                    <button
-                      key={cf}
-                      onClick={() => setActiveCityId(cf === 'all' ? activeCityId : cf)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold capitalize transition ${
-                        (cf === 'all' || activeCityId === cf) 
-                          ? 'bg-amber-400 text-slate-950 shadow-xs' 
-                          : 'text-stone-400 hover:text-stone-200'
-                      }`}
-                    >
-                      {cf}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="w-full bg-stone-800 rounded-full h-1.5 mt-2.5 overflow-hidden relative z-10">
-                <div 
-                  className="bg-gradient-to-r from-amber-400 via-sky-400 to-purple-400 h-1.5 rounded-full transition-all duration-700"
-                  style={{ width: `${(places.filter(p => p.checkedIn).length / Math.max(1, places.length)) * 100}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-              {places.map(place => (
-                <WaypointCard3D
-                  key={place.id}
-                  card={{
-                    ...place,
-                    cityName: cities.find(c => c.id === place.cityId)?.name || 'Japan'
-                  }}
-                  onClick={() => {
-                    setInspectedCard(place);
-                    cardAudio.playClick();
-                  }}
-                />
-              ))}
-            </div>
-
-          </div>
-        )}
-
-        {/* TAB 3: TIMELINE */}
+        {/* TAB 2: TIMELINE */}
         {activeTab === 'timeline' && (
           <div className="space-y-4">
             
@@ -1494,7 +867,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
                     <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">
-                      Active Base Camp • {currentCity.name}
+                      Active Base • {currentCity.name}
                     </span>
                   </div>
                   <h2 className="text-lg font-bold text-slate-900 mt-1">{currentCity.hotelName}</h2>
@@ -1538,8 +911,8 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
             <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Campaign Route & Cities</h3>
-                  <p className="text-xs text-stone-500">Edit origin city, transit dates, hotels, and train transfers</p>
+                  <h3 className="text-sm font-bold text-slate-900">Trip Route</h3>
+                  <p className="text-xs text-stone-500">Hotels, transfer schedules, and destinations</p>
                 </div>
 
                 <button
@@ -1590,7 +963,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                           <button
                             onClick={() => setShowEditCityModal(city)}
                             className="p-1.5 rounded-md hover:bg-stone-100 text-stone-500 hover:text-slate-900"
-                            title="Edit Leg"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
@@ -1598,7 +970,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                             <button
                               onClick={() => setCities(prev => prev.filter(c => c.id !== city.id))}
                               className="p-1.5 rounded-md hover:bg-rose-50 text-stone-400 hover:text-rose-600"
-                              title="Delete Leg"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1614,7 +985,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                           </span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-stone-400 block uppercase font-medium">Hotel Lodging</span>
+                          <span className="text-[10px] text-stone-400 block uppercase font-medium">Hotel</span>
                           <span className="truncate block font-medium text-slate-800">{city.hotelName}</span>
                         </div>
                       </div>
@@ -1627,10 +998,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                           </span>
                           {!isCurrent && (
                             <button
-                              onClick={() => {
-                                setActiveCityId(city.id);
-                                cardAudio.playClick();
-                              }}
+                              onClick={() => setActiveCityId(city.id)}
                               className="text-xs font-semibold text-slate-900 hover:underline"
                             >
                               Switch Base Camp ➔
@@ -1647,7 +1015,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
           </div>
         )}
 
-        {/* TAB 4: KITTY */}
+        {/* TAB 3: KITTY */}
         {activeTab === 'kitty' && (
           <div className="space-y-4">
             
@@ -1661,7 +1029,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                     </span>
                   </div>
                   <h3 className="text-sm font-semibold text-stone-700 mt-1">
-                    Equal Pool for {travelers.length} Companions
+                    Shared Pool for {travelers.length} Companions
                   </h3>
                 </div>
 
@@ -1669,7 +1037,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                   <button
                     onClick={handleResetKitty}
                     className="px-3 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold flex items-center gap-1.5 transition"
-                    title="Reset Kitty Pool & Clear Expenses"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     Reset Pool
@@ -1680,7 +1047,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                     className="px-3.5 py-2 rounded-xl bg-slate-900 text-stone-50 text-xs font-semibold hover:bg-slate-800 shadow-xs flex items-center gap-1.5"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    Top Up Kitty
+                    Top Up
                   </button>
                 </div>
               </div>
@@ -1721,9 +1088,9 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
               <div className="flex items-start justify-between">
                 <div>
                   <span className="text-[10px] font-bold text-amber-700 uppercase bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60">
-                    Spending Infographic
+                    Analytics
                   </span>
-                  <h3 className="text-base font-bold text-slate-900 mt-1.5">What did we spend on the most?</h3>
+                  <h3 className="text-base font-bold text-slate-900 mt-1.5">Spending Breakdown</h3>
                 </div>
 
                 <div className="text-right">
@@ -1739,7 +1106,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">🏆</span>
                     <div>
-                      <span className="text-stone-400 text-[10px] uppercase font-medium block">#1 Top Spending Category</span>
+                      <span className="text-stone-400 text-[10px] uppercase font-medium block">Top Category</span>
                       <span className="font-bold text-slate-900 text-sm">{kittyStats.topCat.name}</span>
                     </div>
                   </div>
@@ -1771,7 +1138,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-sm font-bold text-slate-900">Expense Log</h4>
-                  <p className="text-xs text-stone-500">Separated by Kitty Pool vs. Personal Pocket</p>
+                  <p className="text-xs text-stone-500">Tracked in real time</p>
                 </div>
 
                 <button
@@ -1786,7 +1153,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
               <div className="space-y-2 pt-1">
                 {expenses.length === 0 ? (
                   <div className="text-center py-6 text-stone-400 text-xs italic">
-                    No expenses logged yet. Tap '+ Log Expense' to record one!
+                    No expenses logged yet.
                   </div>
                 ) : (
                   expenses.map(e => (
@@ -1817,7 +1184,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                           onClick={() => {
                             setExpenses(prev => prev.filter(x => x.id !== e.id));
                             if (supabaseRef.current) {
-                              supabaseRef.current.from('trip_expenses').delete().eq('id', e.id).catch(console.warn);
+                              supabaseRef.current.from('trip_expenses').delete().eq('id', e.id).catch(() => {});
                             }
                           }}
                           className="text-stone-400 hover:text-rose-600 p-1"
@@ -1834,55 +1201,36 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
           </div>
         )}
 
-        {/* TAB 5: AI CHAT */}
+        {/* TAB 4: AI CHAT */}
         {activeTab === 'ai' && (
           <div className="bg-white rounded-2xl border border-stone-200/80 shadow-xs flex flex-col h-[75vh] overflow-hidden">
-            
             <div className="p-4 border-b border-stone-100 flex items-center justify-between bg-stone-50/50">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center">
                   <Bot className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-slate-900">Waypoint AI Companion</h3>
-                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900">
-                      {selectedGeminiModel}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-stone-500">
-                    Telemetry: {currentCity.name} • {completedCount}/{activeCityPlaces.length} Spots Done • Kitty: ¥{kittyStats.remaining.toLocaleString()}
-                  </p>
+                  <h3 className="text-sm font-bold text-slate-900">Waypoint AI</h3>
+                  <p className="text-[10px] text-stone-500">{currentCity.name} Leg Assistant</p>
                 </div>
               </div>
 
               <button
                 onClick={() => setShowApiSettingsModal(true)}
-                className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-100 text-stone-600 text-xs flex items-center gap-1"
-                title="Change Model, API Key or Cloud Sync"
+                className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-100 text-stone-600 text-xs"
               >
                 <Settings className="w-3.5 h-3.5" />
-                <span className="text-[10px]">Config</span>
               </button>
             </div>
 
             <div className="p-2.5 border-b border-stone-100 bg-stone-50/30 flex gap-2 overflow-x-auto text-xs">
               <button
-                onClick={() => handleAiSend(`Give our morning travel briefing for ${currentCity.name}. We are staying at ${currentCity.hotelName}. Check our remaining places to visit today (${activeCityPlaces.filter(p => !p.checkedIn).map(p => p.title).join(', ')}), give transit advice, and food tips!`)}
+                onClick={() => handleAiSend(`Give our travel briefing for ${currentCity.name}. Base: ${currentCity.hotelName}. Check our checklist (${activeCityPlaces.filter(p => !p.checkedIn).map(p => p.title).join(', ')}), give transit and food tips!`)}
                 disabled={isAiThinking}
                 className="whitespace-nowrap px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold flex items-center gap-1.5 border border-amber-200/60"
               >
                 <Sun className="w-3.5 h-3.5 text-amber-600" />
-                Morning Briefing
-              </button>
-
-              <button
-                onClick={() => handleAiSend(`Suggest a whimsical hidden spot in ${currentCity.name} that fits a peaceful fantasy anime landscape aesthetic (quiet mossy gardens, tranquil tea shops, or historic stone paths) near our hotel ${currentCity.hotelName}!`)}
-                disabled={isAiThinking}
-                className="whitespace-nowrap px-3 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-900 font-semibold flex items-center gap-1.5 border border-purple-200/60"
-              >
-                <Feather className="w-3.5 h-3.5 text-purple-600" />
-                Suggest Secret Scenic Spot
+                Daily Briefing
               </button>
             </div>
 
@@ -1892,7 +1240,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                   <div className={`max-w-[85%] rounded-2xl p-3.5 leading-relaxed ${
                     msg.role === 'user' 
                       ? 'bg-slate-900 text-white rounded-tr-none' 
-                      : 'bg-stone-100 text-slate-800 rounded-tl-none whitespace-pre-wrap font-sans'
+                      : 'bg-stone-100 text-slate-800 rounded-tl-none whitespace-pre-wrap'
                   }`}>
                     {msg.text}
                   </div>
@@ -1901,7 +1249,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
               {isAiThinking && (
                 <div className="flex items-center gap-2 text-stone-400 text-xs p-2">
                   <span className="w-2 h-2 rounded-full bg-slate-900 animate-ping" />
-                  Waypoint AI is channeling {selectedGeminiModel}...
+                  Thinking...
                 </div>
               )}
               <div ref={chatEndRef} />
@@ -1918,7 +1266,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                 type="text"
                 value={aiInput}
                 onChange={(e) => setAiInput(e.target.value)}
-                placeholder={`Ask ${selectedGeminiModel} about ${currentCity.name}, train lines, or food...`}
+                placeholder="Ask about trains, local food, or schedule..."
                 className="flex-1 text-xs bg-stone-50 border border-stone-200 px-3.5 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-900"
               />
               <button
@@ -1929,21 +1277,17 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                 <Send className="w-4 h-4" />
               </button>
             </form>
-
           </div>
         )}
 
       </main>
 
-      {/* BOTTOM NAVIGATION BAR */}
+      {/* BOTTOM NAV */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200/80 py-2 px-2 shadow-sm">
-        <div className="max-w-md mx-auto grid grid-cols-5 gap-1 text-[10px]">
+        <div className="max-w-md mx-auto grid grid-cols-4 gap-1 text-[10px]">
           
           <button
-            onClick={() => {
-              setActiveTab('places');
-              cardAudio.playClick();
-            }}
+            onClick={() => setActiveTab('places')}
             className={`flex flex-col items-center justify-center py-1 rounded-xl transition ${
               activeTab === 'places' ? 'text-slate-900 font-bold' : 'text-stone-400 hover:text-stone-700'
             }`}
@@ -1953,23 +1297,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
           </button>
 
           <button
-            onClick={() => {
-              setActiveTab('cards');
-              cardAudio.playClick();
-            }}
-            className={`flex flex-col items-center justify-center py-1 rounded-xl transition ${
-              activeTab === 'cards' ? 'text-amber-600 font-bold' : 'text-stone-400 hover:text-stone-700'
-            }`}
-          >
-            <Compass className="w-4 h-4 mb-0.5" />
-            <span>Deck</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('timeline');
-              cardAudio.playClick();
-            }}
+            onClick={() => setActiveTab('timeline')}
             className={`flex flex-col items-center justify-center py-1 rounded-xl transition ${
               activeTab === 'timeline' ? 'text-slate-900 font-bold' : 'text-stone-400 hover:text-stone-700'
             }`}
@@ -1979,10 +1307,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
           </button>
 
           <button
-            onClick={() => {
-              setActiveTab('kitty');
-              cardAudio.playClick();
-            }}
+            onClick={() => setActiveTab('kitty')}
             className={`flex flex-col items-center justify-center py-1 rounded-xl transition ${
               activeTab === 'kitty' ? 'text-slate-900 font-bold' : 'text-stone-400 hover:text-stone-700'
             }`}
@@ -1992,10 +1317,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
           </button>
 
           <button
-            onClick={() => {
-              setActiveTab('ai');
-              cardAudio.playClick();
-            }}
+            onClick={() => setActiveTab('ai')}
             className={`flex flex-col items-center justify-center py-1 rounded-xl transition ${
               activeTab === 'ai' ? 'text-slate-900 font-bold' : 'text-stone-400 hover:text-stone-700'
             }`}
@@ -2007,7 +1329,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
         </div>
       </nav>
 
-      {/* MODAL 1: ADD PLACE */}
+      {/* MODALS */}
       {showAddPlaceModal && (
         <AddPlaceModal
           currentCity={currentCity}
@@ -2016,7 +1338,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
           onAdd={async (newPlace) => {
             setPlaces(prev => [newPlace, ...prev]);
             setShowAddPlaceModal(false);
-            cardAudio.playFoilUnlock();
 
             if (supabaseRef.current) {
               try {
@@ -2029,38 +1350,14 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                   time_of_day: newPlace.timeOfDay,
                   est_cost: newPlace.costJPY,
                   notes: newPlace.notes,
-                  visited: false,
-                  card_unlocked: false,
-                  image_url: newPlace.artworkUrl
+                  visited: false
                 }]);
-              } catch (err) {
-                console.warn('Could not insert place into cloud database:', err);
-              }
+              } catch {}
             }
           }}
         />
       )}
 
-      {/* MODAL 2: CARD INSPECTION */}
-      {inspectedCard && (
-        <CardInspectionModal
-          card={inspectedCard}
-          currentCity={currentCity}
-          onClose={() => setInspectedCard(null)}
-          onCheckIn={() => handleToggleCheckIn(inspectedCard.id)}
-          onGenerateArt={() => handleGenerateLandscapeArt(inspectedCard)}
-          onUpdateNotes={(newNotes) => {
-            setPlaces(prev => prev.map(p => p.id === inspectedCard.id ? { ...p, notes: newNotes } : p));
-            setInspectedCard(prev => ({ ...prev, notes: newNotes }));
-            if (supabaseRef.current) {
-              supabaseRef.current.from('trip_places').update({ notes: newNotes }).eq('id', inspectedCard.id).catch(console.warn);
-            }
-          }}
-          getMapsUrl={getMapsUrl}
-        />
-      )}
-
-      {/* MODAL 3: API & CLOUD SETTINGS */}
       {showApiSettingsModal && (
         <ApiSettingsModal
           apiKey={geminiApiKey}
@@ -2078,7 +1375,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
         />
       )}
 
-      {/* MODAL 4: MANAGE TRAVELERS */}
       {showManageTravelers && (
         <ManageTravelersModal
           travelers={travelers}
@@ -2092,7 +1388,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
         />
       )}
 
-      {/* MODAL 5: EDIT CITY */}
       {(showEditCityModal || showNewCityModal) && (
         <EditCityModal
           city={showEditCityModal}
@@ -2110,20 +1405,17 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
         />
       )}
 
-      {/* MODAL 6: TOP UP KITTY */}
       {showTopUpModal && (
         <TopUpModal
           travelers={travelers}
           onClose={() => setShowTopUpModal(false)}
-          onAdd={async (items) => {
+          onAdd={(items) => {
             setContributions(prev => [...items, ...prev]);
             setShowTopUpModal(false);
-            cardAudio.playClick();
           }}
         />
       )}
 
-      {/* MODAL 7: RECORD EXPENSE */}
       {showExpenseModal && (
         <AddExpenseModal
           travelers={travelers}
@@ -2132,7 +1424,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
           onAdd={async (exp) => {
             setExpenses(prev => [exp, ...prev]);
             setShowExpenseModal(false);
-            cardAudio.playClick();
 
             if (supabaseRef.current) {
               try {
@@ -2145,9 +1436,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                   is_kitty: exp.paymentMethod === 'kitty',
                   created_at: new Date().toISOString()
                 }]);
-              } catch (err) {
-                console.warn('Could not insert expense to cloud:', err);
-              }
+              } catch {}
             }
           }}
         />
@@ -2157,9 +1446,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
   );
 }
 
-// ============================================================================
-// 6. MODAL: ADD PLACE TO VISIT
-// ============================================================================
 function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
   const [cityId, setCityId] = useState(currentCity.id);
   const [title, setTitle] = useState('');
@@ -2174,8 +1460,6 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
     e.preventDefault();
     if (!title.trim()) return;
 
-    const fallbackArt = generateProceduralLandscapeArt(title, category);
-
     onAdd({
       id: 'place-' + Date.now(),
       cityId,
@@ -2188,12 +1472,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
       checkedInBy: null,
       unlockedAt: null,
       address: address.trim() || `${currentCity.name}, Japan`,
-      notes: notes.trim(),
-      rarity: category === 'Shrines & Temples' ? 'Mythic Grimoire' : 'Ancient Relic',
-      manaResonance: Math.floor(Math.random() * 400) + 700,
-      stars: 5,
-      cardBio: `A quiet scenic destination in ${currentCity.name} steeped in memories and gentle skies.`,
-      artworkUrl: fallbackArt
+      notes: notes.trim()
     });
   };
 
@@ -2201,10 +1480,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl">
         <div className="flex justify-between items-center">
-          <div>
-            <h3 className="font-bold text-sm text-slate-900">+ Add Place to Visit</h3>
-            <p className="text-[11px] text-stone-500">Add to your city travel checklist</p>
-          </div>
+          <h3 className="font-bold text-sm text-slate-900">+ Add Place to Visit</h3>
           <button onClick={onClose} className="text-stone-400 hover:text-slate-900">
             <X className="w-4 h-4" />
           </button>
@@ -2286,7 +1562,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               min="0"
               value={costJPY}
               onChange={(e) => setCostJPY(e.target.value)}
-              placeholder="e.g. 500 (Leave blank if free)"
+              placeholder="e.g. 500"
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl font-mono"
             />
           </div>
@@ -2303,7 +1579,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
           </div>
 
           <div>
-            <label className="text-[10px] text-stone-500 uppercase font-medium">Notes & Travel Strategy</label>
+            <label className="text-[10px] text-stone-500 uppercase font-medium">Notes & Tips</label>
             <textarea
               rows={2}
               value={notes}
@@ -2325,7 +1601,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               type="submit"
               className="flex-1 py-2 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800"
             >
-              Save Destination
+              Save Place
             </button>
           </div>
         </form>
@@ -2334,12 +1610,9 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
   );
 }
 
-// ============================================================================
-// 7. MODAL: SETTINGS
-// ============================================================================
 function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, onSave }) {
   const [tempKey, setTempKey] = useState(apiKey || '');
-  const [tempModel, setTempModel] = useState(model || 'gemini-3.8-flash');
+  const [tempModel, setTempModel] = useState(model || 'gemini-2.5-flash');
   const [tempSUrl, setTempSUrl] = useState(supabaseUrl || '');
   const [tempSKey, setTempSKey] = useState(supabaseKey || '');
 
@@ -2352,15 +1625,7 @@ function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, on
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-900 flex items-center justify-center">
-              <Sliders className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm text-slate-900">Waypoint Engine Settings</h3>
-              <p className="text-[10px] text-stone-500">Configure AI Intelligence & Supabase Cloud Sync</p>
-            </div>
-          </div>
+          <h3 className="font-bold text-sm text-slate-900">Settings</h3>
           <button onClick={onClose} className="text-stone-400 hover:text-slate-900">
             <X className="w-4 h-4" />
           </button>
@@ -2368,21 +1633,20 @@ function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, on
 
         <form onSubmit={handleSave} className="space-y-3 text-xs">
           <div className="border border-stone-200 rounded-2xl p-3 bg-stone-50/50 space-y-2">
-            <span className="text-[10px] font-bold text-slate-900 uppercase block">1. Gemini AI Model</span>
+            <span className="text-[10px] font-bold text-slate-900 uppercase block">Gemini AI</span>
             <div>
               <select
                 value={tempModel}
                 onChange={(e) => setTempModel(e.target.value)}
                 className="w-full px-2.5 py-1.5 bg-white border border-stone-200 rounded-xl font-bold text-slate-900"
               >
-                <option value="gemini-3.8-flash">gemini-3.8-flash (High-Speed Reasoning)</option>
-                <option value="gemini-3.1-pro">gemini-3.1-pro (Pro Intelligence Tier)</option>
-                <option value="gemini-2.5-pro">gemini-2.5-pro (Extended Pro Context)</option>
+                <option value="gemini-2.5-flash">gemini-2.5-flash (Fast)</option>
+                <option value="gemini-2.5-pro">gemini-2.5-pro (Detailed)</option>
               </select>
             </div>
 
             <div>
-              <label className="text-[9px] font-bold text-stone-500 uppercase block mb-0.5">Gemini API Key</label>
+              <label className="text-[9px] font-bold text-stone-500 uppercase block mb-0.5">API Key</label>
               <input
                 type="password"
                 value={tempKey}
@@ -2394,13 +1658,9 @@ function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, on
           </div>
 
           <div className="border border-stone-200 rounded-2xl p-3 bg-stone-50/50 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-slate-900 uppercase block">2. Real-Time Cloud Sync</span>
-              <Database className="w-3.5 h-3.5 text-emerald-600" />
-            </div>
-
+            <span className="text-[10px] font-bold text-slate-900 uppercase block">Supabase Sync</span>
             <div>
-              <label className="text-[9px] font-bold text-stone-500 uppercase block mb-0.5">Supabase Project URL</label>
+              <label className="text-[9px] font-bold text-stone-500 uppercase block mb-0.5">Project URL</label>
               <input
                 type="text"
                 value={tempSUrl}
@@ -2411,7 +1671,7 @@ function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, on
             </div>
 
             <div>
-              <label className="text-[9px] font-bold text-stone-500 uppercase block mb-0.5">Supabase Anon Public Key</label>
+              <label className="text-[9px] font-bold text-stone-500 uppercase block mb-0.5">Anon Key</label>
               <input
                 type="password"
                 value={tempSKey}
@@ -2434,7 +1694,7 @@ function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, on
               type="submit"
               className="flex-1 py-2 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800"
             >
-              Save Configuration
+              Save
             </button>
           </div>
         </form>
@@ -2443,121 +1703,6 @@ function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, on
   );
 }
 
-// ============================================================================
-// 8. MODAL: CARD INSPECTION
-// ============================================================================
-function CardInspectionModal({
-  card,
-  currentCity,
-  onClose,
-  onCheckIn,
-  onGenerateArt,
-  onUpdateNotes,
-  getMapsUrl
-}) {
-  const [editingNotes, setEditingNotes] = useState(card.notes || '');
-
-  return (
-    <div 
-      onClick={onClose}
-      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
-    >
-      <div 
-        onClick={(e) => e.stopPropagation()}
-        className="bg-gradient-to-b from-[#181824] via-[#101018] to-black text-amber-50 rounded-3xl p-5 max-w-sm w-full shadow-2xl border-2 border-amber-400/90 space-y-4 my-auto relative"
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-full bg-stone-800 text-stone-400 hover:text-white z-30"
-        >
-          <X className="w-4 h-4" />
-        </button>
-
-        <div className="pt-2">
-          <WaypointCard3D 
-            card={{
-              ...card,
-              cityName: currentCity.name
-            }} 
-            isInspecting={true} 
-          />
-        </div>
-
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[10px] uppercase font-bold text-amber-300">{card.category}</span>
-            <span className="text-[10px] font-mono font-bold text-sky-400">+{card.manaResonance || 880} MP</span>
-          </div>
-          <h2 className="text-lg font-black text-white">{card.title}</h2>
-          <p className="text-xs text-amber-200/80 font-serif">{card.titleJa}</p>
-          <p className="text-xs text-stone-300 italic bg-stone-800/60 p-2.5 rounded-xl border border-stone-800 mt-2">
-            "{card.cardBio}"
-          </p>
-        </div>
-
-        <div className="bg-stone-900/80 p-3 rounded-2xl border border-stone-700/80 flex items-center justify-between text-xs">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-amber-300 flex items-center gap-1">
-              <Compass className="w-3.5 h-3.5 text-sky-400" /> Pure Scenery Generator
-            </span>
-            <p className="text-[10px] text-stone-400">Uses Gemini 3.1 Flash Image AI</p>
-          </div>
-
-          <button
-            onClick={onGenerateArt}
-            disabled={card.isGeneratingArt}
-            className="px-3 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs hover:bg-amber-300 flex items-center gap-1 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${card.isGeneratingArt ? 'animate-spin' : ''}`} />
-            Conjure Art
-          </button>
-        </div>
-
-        <div>
-          <label className="text-[10px] uppercase font-bold text-stone-400 block mb-1">
-            Travel Notes & Memory
-          </label>
-          <textarea
-            rows={2}
-            value={editingNotes}
-            onChange={(e) => setEditingNotes(e.target.value)}
-            onBlur={() => onUpdateNotes(editingNotes)}
-            placeholder="Field notes, memories, or food tips..."
-            className="w-full text-xs bg-stone-900 border border-stone-700 rounded-xl p-2.5 text-stone-100 placeholder:text-stone-500 focus:outline-none focus:border-amber-400"
-          />
-        </div>
-
-        <div className="flex gap-2 pt-1">
-          <button
-            onClick={onCheckIn}
-            className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition shadow-sm ${
-              card.checkedIn 
-                ? 'bg-stone-800 hover:bg-stone-700 text-stone-300' 
-                : 'bg-gradient-to-r from-amber-400 via-sky-400 to-purple-400 hover:opacity-90 text-slate-950 font-black'
-            }`}
-          >
-            {card.checkedIn ? 'Mark as Unvisited' : 'Stamp Check-in & Unlock ✓'}
-          </button>
-
-          <a
-            href={getMapsUrl(card.title, card.address)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-4 py-2.5 text-xs font-bold rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 flex items-center justify-center gap-1.5"
-          >
-            <MapPin className="w-3.5 h-3.5 text-rose-400" />
-            Route
-          </a>
-        </div>
-
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// 9. AUXILIARY MODALS
-// ============================================================================
 function ManageTravelersModal({ travelers, onClose, onUpdate }) {
   const [list, setList] = useState(travelers);
   const [newName, setNewName] = useState('');
@@ -2570,31 +1715,17 @@ function ManageTravelersModal({ travelers, onClose, onUpdate }) {
       id: 't-' + Date.now(),
       name: newName.trim(),
       avatar: newAvatar || '🎒',
-      role: 'Adventurer'
+      role: 'Traveler'
     };
     const updated = [...list, item];
     setList(updated);
     onUpdate(updated);
     setNewName('');
-    cardAudio.playClick();
   };
 
   const handleDelete = (id) => {
     if (list.length <= 1) return;
     const updated = list.filter(t => t.id !== id);
-    setList(updated);
-    onUpdate(updated);
-    cardAudio.playClick();
-  };
-
-  const handleEditName = (id, val) => {
-    const updated = list.map(t => t.id === id ? { ...t, name: val } : t);
-    setList(updated);
-    onUpdate(updated);
-  };
-
-  const handleEditAvatar = (id, val) => {
-    const updated = list.map(t => t.id === id ? { ...t, avatar: val } : t);
     setList(updated);
     onUpdate(updated);
   };
@@ -2603,10 +1734,7 @@ function ManageTravelersModal({ travelers, onClose, onUpdate }) {
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl p-5 max-w-sm w-full space-y-4 shadow-xl">
         <div className="flex justify-between items-center">
-          <div>
-            <h3 className="font-bold text-sm text-slate-900">Manage Travelers</h3>
-            <p className="text-[11px] text-stone-500">Add companions, edit names, or change avatars</p>
-          </div>
+          <h3 className="font-bold text-sm text-slate-900">Manage Travelers</h3>
           <button onClick={onClose} className="text-stone-400 hover:text-slate-900">
             <X className="w-4 h-4" />
           </button>
@@ -2615,24 +1743,12 @@ function ManageTravelersModal({ travelers, onClose, onUpdate }) {
         <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
           {list.map(t => (
             <div key={t.id} className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 flex items-center justify-between gap-2">
-              <input
-                type="text"
-                value={t.avatar}
-                onChange={(e) => handleEditAvatar(t.id, e.target.value)}
-                className="w-9 h-9 text-center bg-white border border-stone-200 rounded-lg text-base"
-                title="Change Avatar"
-              />
-              <input
-                type="text"
-                value={t.name}
-                onChange={(e) => handleEditName(t.id, e.target.value)}
-                className="flex-1 px-2.5 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-semibold text-slate-900"
-              />
+              <span className="text-base px-1">{t.avatar}</span>
+              <span className="flex-1 text-xs font-semibold text-slate-900">{t.name}</span>
               {list.length > 1 && (
                 <button
                   onClick={() => handleDelete(t.id)}
                   className="p-1.5 text-stone-400 hover:text-rose-600"
-                  title="Remove Companion"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -2647,14 +1763,13 @@ function ManageTravelersModal({ travelers, onClose, onUpdate }) {
             value={newAvatar}
             onChange={(e) => setNewAvatar(e.target.value)}
             className="w-10 text-center bg-stone-50 border border-stone-200 rounded-xl text-base"
-            placeholder="Emoji"
           />
           <input
             type="text"
             required
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="Friend's name..."
+            placeholder="Name..."
             className="flex-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs"
           />
           <button
@@ -2700,7 +1815,6 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
       endDate,
       transitToNext
     });
-    cardAudio.playClick();
   };
 
   return (
@@ -2708,7 +1822,7 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
       <div className="bg-white rounded-2xl p-5 max-w-sm w-full space-y-3 shadow-xl">
         <div className="flex justify-between items-center">
           <h3 className="font-bold text-sm text-slate-900">
-            {isNew ? '+ Add New City Leg' : 'Edit City Route & Lodging'}
+            {isNew ? '+ Add New Leg' : 'Edit Leg'}
           </h3>
           <button onClick={onClose} className="text-stone-400 hover:text-slate-900">
             <X className="w-4 h-4" />
@@ -2729,7 +1843,7 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">Japanese Kanji / Hiragana</label>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Japanese Kanji / Kana</label>
             <input
               type="text"
               value={nameJa}
@@ -2741,7 +1855,7 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] font-medium text-stone-500 uppercase">Arrival Date & Time</label>
+              <label className="text-[10px] font-medium text-stone-500 uppercase">Arrival</label>
               <input
                 type="datetime-local"
                 required
@@ -2751,7 +1865,7 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
               />
             </div>
             <div>
-              <label className="text-[10px] font-medium text-stone-500 uppercase">Departure Date & Time</label>
+              <label className="text-[10px] font-medium text-stone-500 uppercase">Departure</label>
               <input
                 type="datetime-local"
                 required
@@ -2763,7 +1877,7 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">Hotel Lodging Base</label>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Hotel</label>
             <input
               type="text"
               value={hotelName}
@@ -2774,7 +1888,7 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">Hotel Address / Station Gate</label>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Address / Station Exit</label>
             <input
               type="text"
               value={hotelAddress}
@@ -2785,7 +1899,7 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">Transit to Next City</label>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Transit to Next Leg</label>
             <input
               type="text"
               value={transitToNext}
@@ -2869,7 +1983,7 @@ function TopUpModal({ travelers, onClose, onAdd }) {
               onChange={(e) => setMode(e.target.value)}
               className="w-full mt-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-slate-900 font-semibold"
             >
-              <option value="all">Everyone Puts Same Amount (All {travelers.length} Travelers)</option>
+              <option value="all">Everyone (All {travelers.length} Travelers)</option>
               {travelers.map(t => (
                 <option key={t.id} value={t.id}>Single: {t.avatar} {t.name} Only</option>
               ))}
@@ -2920,7 +2034,7 @@ function TopUpModal({ travelers, onClose, onAdd }) {
               type="submit"
               className="flex-1 py-2 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800"
             >
-              Confirm Deposit
+              Confirm
             </button>
           </div>
         </form>
