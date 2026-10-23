@@ -1071,12 +1071,13 @@ export default function App() {
       setInspectedCard(prev => ({ ...prev, isGeneratingArt: true }));
     }
 
+    // Uses the key saved in Config or falls back to your key directly
     const apiKey = geminiApiKey || "";
-    // Note: Pure scenery prompt, explicitly without any human characters
     const prompt = `A breathtaking fantasy anime watercolor landscape illustration of ${card.title} in ${currentCity.name}, Japan. Empty landscape scenery only, absolutely no people and no human figures. Ethereal watercolor atmosphere, soft golden hour sunlight, towering bright white cumulus clouds in a cerulean sky, moss-covered ancient stone structures, peaceful hills and wildflowers, floating luminous blue mana motes drifting gently in the breeze. Studio anime scenery wallpaper, 8k resolution, serene natural world masterwork.`;
 
     try {
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${apiKey}`;
+      // Flagship high-detail image generation model: gemini-3-pro-image
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image:generateContent?key=${apiKey}`;
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1090,11 +1091,13 @@ export default function App() {
       });
 
       const data = await response.json();
-      const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
 
       let finalUrl = fallbackArt;
+      const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
       if (part && part.inlineData && part.inlineData.data) {
-        finalUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        finalUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+      } else {
+        console.warn('AI Studio response did not include image part:', data);
       }
 
       setPlaces(prev => prev.map(p => p.id === card.id ? { ...p, artworkUrl: finalUrl, isGeneratingArt: false } : p));
@@ -1112,14 +1115,15 @@ export default function App() {
       }
 
       cardAudio.playFoilUnlock();
-    } catch {
+    } catch (err) {
+      console.error('Conjure Art failed:', err);
       setPlaces(prev => prev.map(p => p.id === card.id ? { ...p, artworkUrl: fallbackArt, isGeneratingArt: false } : p));
       if (inspectedCard && inspectedCard.id === card.id) {
         setInspectedCard(prev => ({ ...prev, artworkUrl: fallbackArt, isGeneratingArt: false }));
       }
     }
   };
-
+  
   // AI Chat with Gemini Pro / 3.8 Flash model engine
   const handleAiSend = async (forcedText = null) => {
     const text = (forcedText || aiInput).trim();
