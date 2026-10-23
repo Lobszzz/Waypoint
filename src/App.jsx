@@ -1061,6 +1061,27 @@ export default function App() {
     return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=transit`;
   };
 
+  // Reset Kitty Pool & Clear Expenses
+  const handleResetKitty = async () => {
+    const confirmReset = window.confirm("Reset Common Kitty? This will clear all deposits and logged expenses back to ¥0.");
+    if (!confirmReset) return;
+
+    setContributions([]);
+    setExpenses([]);
+    localStorage.removeItem('waypoint_contribs');
+    localStorage.removeItem('waypoint_expenses');
+    cardAudio.playClick();
+
+    // If connected to Supabase, clear remote records as well
+    if (supabaseRef.current) {
+      try {
+        await supabaseRef.current.from('trip_expenses').delete().neq('id', '0');
+        await supabaseRef.current.from('trip_contributions').delete().neq('id', '0');
+      } catch (err) {
+        console.warn('Could not clear Supabase kitty tables:', err);
+      }
+    }
+  };
   // Generate Pure Landscape Scenery Art via Gemini API
  const handleGenerateLandscapeArt = async (card) => {
     cardAudio.playClick();
@@ -1960,13 +1981,24 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                   </h3>
                 </div>
 
-                <button
-                  onClick={() => setShowTopUpModal(true)}
-                  className="px-3.5 py-2 rounded-xl bg-slate-900 text-stone-50 text-xs font-semibold hover:bg-slate-800 shadow-xs flex items-center gap-1.5"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Top Up Kitty
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleResetKitty}
+                    className="px-3 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold flex items-center gap-1.5 transition"
+                    title="Reset Kitty Pool & Clear Expenses"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Reset Pool
+                  </button>
+
+                  <button
+                    onClick={() => setShowTopUpModal(true)}
+                    className="px-3.5 py-2 rounded-xl bg-slate-900 text-stone-50 text-xs font-semibold hover:bg-slate-800 shadow-xs flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Top Up Kitty
+                  </button>
+                </div>
               </div>
 
               {/* Main JPY / MYR Display */}
