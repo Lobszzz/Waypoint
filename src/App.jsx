@@ -833,7 +833,7 @@ export default function App() {
   useEffect(() => localStorage.setItem('waypoint_supabase_url', supabaseUrl), [supabaseUrl]);
   useEffect(() => localStorage.setItem('waypoint_supabase_key', supabaseAnonKey), [supabaseAnonKey]);
 
-  // Real-Time Supabase Sync Handlers
+ // Real-Time Supabase Sync Handlers
   useEffect(() => {
     if (!supabaseRef.current) return;
     const client = supabaseRef.current;
@@ -842,53 +842,45 @@ export default function App() {
     const syncFromCloud = async () => {
       try {
         setCloudSyncStatus('syncing');
+
+        // Fetch places from cloud
         const { data: cloudPlaces } = await client.from('trip_places').select('*');
         if (cloudPlaces && cloudPlaces.length > 0) {
-          setPlaces(prev => {
-            const map = new Map(prev.map(p => [p.id, p]));
-            cloudPlaces.forEach(cp => {
-              map.set(cp.id, {
-                id: cp.id,
-                cityId: cp.city || cp.cityId || 'fukuoka',
-                title: cp.name || cp.title,
-                titleJa: cp.jp_name || cp.titleJa || '',
-                category: cp.category || 'Shrines & Temples',
-                timeOfDay: cp.time_of_day || cp.timeOfDay || 'Morning',
-                costJPY: Number(cp.est_cost || cp.costJPY || 0),
-                checkedIn: !!(cp.visited || cp.checkedIn),
-                checkedInBy: cp.checked_in_by || cp.checkedInBy || null,
-                unlockedAt: cp.unlocked_at || cp.unlockedAt || null,
-                address: cp.address || 'Japan',
-                notes: cp.notes || '',
-                rarity: cp.rarity || 'Ancient Relic',
-                manaResonance: cp.mana_resonance || 880,
-                stars: 5,
-                cardBio: cp.card_bio || `A quiet scenic destination in ${cp.city || 'Japan'} steeped in gentle skies.`,
-                artworkUrl: cp.image_url || cp.artworkUrl || generateProceduralLandscapeArt(cp.name || cp.title, cp.category)
-              });
-            });
-            return Array.from(map.values());
-          });
+          setPlaces(cloudPlaces.map(cp => ({
+            id: cp.id,
+            cityId: cp.city || cp.cityId || 'fukuoka',
+            title: cp.name || cp.title,
+            titleJa: cp.jp_name || cp.titleJa || '',
+            category: cp.category || 'Shrines & Temples',
+            timeOfDay: cp.time_of_day || cp.timeOfDay || 'Morning',
+            costJPY: Number(cp.est_cost || cp.costJPY || 0),
+            checkedIn: !!(cp.visited || cp.checkedIn),
+            checkedInBy: cp.checked_in_by || cp.checkedInBy || null,
+            unlockedAt: cp.unlocked_at || cp.unlockedAt || null,
+            address: cp.address || 'Japan',
+            notes: cp.notes || '',
+            rarity: cp.rarity || 'Ancient Relic',
+            manaResonance: cp.mana_resonance || 880,
+            stars: 5,
+            cardBio: cp.card_bio || `A quiet scenic destination in ${cp.city || 'Japan'} steeped in gentle skies.`,
+            artworkUrl: cp.image_url || cp.artworkUrl || generateProceduralLandscapeArt(cp.name || cp.title, cp.category)
+          })));
         }
 
+        // Fetch expenses from cloud (replaces local dummy list with cloud data)
         const { data: cloudExpenses } = await client.from('trip_expenses').select('*');
-        if (cloudExpenses && cloudExpenses.length > 0) {
-          setExpenses(prev => {
-            const map = new Map(prev.map(e => [e.id, e]));
-            cloudExpenses.forEach(ce => {
-              map.set(ce.id, {
-                id: ce.id,
-                title: ce.title,
-                amountJPY: Number(ce.amount_jpy || ce.amountJPY || 0),
-                category: ce.category || 'Ramen & Dining',
-                paymentMethod: ce.is_kitty ? 'kitty' : 'personal',
-                paidBy: ce.paid_by || null,
-                date: ce.date || new Date(ce.created_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-              });
-            });
-            return Array.from(map.values());
-          });
+        if (cloudExpenses) {
+          setExpenses(cloudExpenses.map(ce => ({
+            id: ce.id,
+            title: ce.title,
+            amountJPY: Number(ce.amount_jpy || ce.amountJPY || 0),
+            category: ce.category || 'Ramen & Dining',
+            paymentMethod: ce.is_kitty ? 'kitty' : 'personal',
+            paidBy: ce.paid_by || null,
+            date: ce.date || new Date(ce.created_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          })));
         }
+
         setCloudSyncStatus('connected');
       } catch (err) {
         console.warn('Initial cloud sync error:', err);
