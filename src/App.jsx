@@ -1204,6 +1204,34 @@ export default function App() {
 
     cardAudio.playFoilUnlock();
   };
+// AI Chat with Gemini Pro / Flash model engine
+  const handleAiSend = async (forcedText = null) => {
+    const text = (forcedText || aiInput).trim();
+    if (!text) return;
+    setAiLog(prev => [...prev, { role: 'user', text }]);
+    setAiInput('');
+    setIsAiThinking(true);
+
+    const apiKey = geminiApiKey || "";
+    const modelToUse = selectedGeminiModel || "gemini-2.5-flash";
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
+
+    const contextPayload = {
+      companionMinds: travelers.map(t => `${t.name} (${t.avatar} - ${t.role})`),
+      activeTraveler: travelers.find(t => t.id === activeTravelerId)?.name,
+      currentCityLeg: currentCity.name,
+      hotelBase: `${currentCity.hotelName} near ${currentCity.station}`,
+      nextCityTransit: nextCity ? `Departing to ${nextCity.name} in ${timers.nextD}d ${timers.nextH}h` : 'Final City Leg',
+      kittyRemainingJPY: `¥${kittyStats.remaining.toLocaleString()} (~RM ${jpyToMyr(kittyStats.remaining)})`,
+      totalPlacesInThisCity: activeCityPlaces.length,
+      placesToVisit: activeCityPlaces.filter(p => !p.checkedIn).map(p => `${p.title} (${p.category} - ${p.timeOfDay})`),
+      alreadyVisited: activeCityPlaces.filter(p => p.checkedIn).map(p => p.title)
+    };
+
+    const systemPrompt = `You are the personal Travel AI Assistant in Waypoint, an elegant travel companion app.
+Model Engine: ${modelToUse} (Gemini Status Active).
+LIVE APP TELEMETRY FOR ${currentCity.name.toUpperCase()}:
+${JSON.stringify(contextPayload, null, 2)}
 Respond with warmth, practical transit and timing tips, food recommendations, and serene travel philosophy.`;
 
     try {
