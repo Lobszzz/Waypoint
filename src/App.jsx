@@ -1103,7 +1103,7 @@ export default function App() {
         image_url: finalUrl
       }).catch(console.warn);
     }
-  };
+  
     const modelToUse = selectedGeminiModel || "gemini-3.8-flash";
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
 
