@@ -41,8 +41,7 @@ import {
   CheckCheck
 } from 'lucide-react';
 
-// Browser-safe dynamic Supabase client helper that avoids build/compilation errors
-// when @supabase/supabase-js is not yet installed in local/sandbox environments.
+// Browser-safe dynamic Supabase client helper
 function getSupabaseClient(rawUrl, key) {
   if (!rawUrl || !key) return null;
   const url = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
@@ -50,7 +49,7 @@ function getSupabaseClient(rawUrl, key) {
     if (typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function') {
       return window.supabase.createClient(url, key);
     }
-    // Fallback lightweight REST client if package or CDN is not pre-bundled
+    // Fallback lightweight REST client if CDN is still loading
     return {
       from: (tableName) => ({
         select: async () => {
@@ -66,7 +65,7 @@ function getSupabaseClient(rawUrl, key) {
         },
         insert: async (rows) => {
           try {
-            await fetch(`${url}/rest/v1/${tableName}`, {
+            const res = await fetch(`${url}/rest/v1/${tableName}`, {
               method: 'POST',
               headers: {
                 apikey: key,
@@ -76,6 +75,11 @@ function getSupabaseClient(rawUrl, key) {
               },
               body: JSON.stringify(rows)
             });
+            if (!res.ok) {
+              const errBody = await res.text();
+              console.error(`Supabase Insert error [${res.status}]:`, errBody);
+              return { error: errBody };
+            }
             return { error: null };
           } catch (e) {
             return { error: e };
@@ -166,7 +170,6 @@ class CardAudioEngine {
     this.init();
     if (!this.ctx) return;
 
-    // Ethereal mana chime arpeggio (magical travel discovery chime)
     const freqs = [659.25, 830.61, 987.77, 1318.51, 1661.22, 1975.53];
     let start = this.ctx.currentTime + 0.03;
 
@@ -211,13 +214,12 @@ const cardAudio = new CardAudioEngine();
 // 2. PROCEDURAL LANDSCAPE SCENERY GENERATOR (Pure Scenery - No Characters)
 // ============================================================================
 function generateProceduralLandscapeArt(title, category) {
-  const isNight = title.toLowerCase().includes('night') || 
-                  title.toLowerCase().includes('canal') || 
-                  title.toLowerCase().includes('dotonbori') ||
-                  title.toLowerCase().includes('yatai');
+  const isNight = (title || '').toLowerCase().includes('night') || 
+                  (title || '').toLowerCase().includes('canal') || 
+                  (title || '').toLowerCase().includes('dotonbori') || 
+                  (title || '').toLowerCase().includes('yatai');
   
   if (isNight) {
-    // Twilight & Golden Lantern Horizon (Pure Landscape)
     return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
       <defs>
         <linearGradient id="twilightSky" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -238,23 +240,16 @@ function generateProceduralLandscapeArt(title, category) {
       <rect width="600" height="600" fill="url(%23twilightSky)"/>
       <ellipse cx="480" cy="160" rx="42" ry="42" fill="%23FEF3C7" opacity="0.9" filter="url(%23manaGlow)"/>
       <path d="M0,420 Q150,380 300,410 T600,390 L600,600 L0,600 Z" fill="url(%23waterMirror)"/>
-      
-      <!-- Distant mossy stone arches & lantern glow -->
       <polygon points="120,380 150,320 220,320 250,380" fill="%231E293B" opacity="0.85"/>
       <circle cx="185" cy="340" r="14" fill="%23F59E0B" filter="url(%23manaGlow)"/>
-
-      <!-- Floating gentle mana particles -->
       <circle cx="130" cy="220" r="4" fill="%2393C5FD" filter="url(%23manaGlow)"/>
       <circle cx="270" cy="150" r="4.5" fill="%23FDE68A" filter="url(%23manaGlow)"/>
       <circle cx="370" cy="250" r="3" fill="%23F472B6" filter="url(%23manaGlow)"/>
       <circle cx="450" cy="310" r="3.5" fill="%2367E8F9" filter="url(%23manaGlow)"/>
-      
-      <!-- Field grasses in silhouette -->
       <path d="M40,600 Q60,520 80,600 M120,600 Q140,500 160,600 M240,600 Q260,530 280,600 M400,600 Q420,510 440,600 M520,600 Q540,530 560,600" stroke="%230F172A" stroke-width="4"/>
     </svg>`;
   }
 
-  // Pure Scenic Anime Watercolor: Cerulean Sky, Cumulus Clouds & Rolling Green Meadow
   return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
     <defs>
       <linearGradient id="scenicSky" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -273,33 +268,20 @@ function generateProceduralLandscapeArt(title, category) {
         <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
       </filter>
     </defs>
-
     <rect width="600" height="600" fill="url(%23scenicSky)"/>
-
-    <!-- Towering Sunlit Anime Clouds -->
     <circle cx="170" cy="230" r="95" fill="%23FFFFFF" opacity="0.95"/>
     <circle cx="280" cy="190" r="125" fill="%23FFFFFF" opacity="0.98"/>
     <circle cx="410" cy="240" r="105" fill="%23FFFFFF" opacity="0.92"/>
     <circle cx="290" cy="265" r="115" fill="%23EFF6FF" opacity="0.9"/>
-
-    <!-- Distant rolling mountains with sunbeams -->
     <polygon points="0,410 180,310 360,420" fill="%2393C5FD" opacity="0.6"/>
     <polygon points="220,420 400,280 600,430" fill="%2360A5FA" opacity="0.45"/>
-
-    <!-- Rolling Green Meadow Hillside with Wildflowers -->
     <path d="M0,390 Q200,330 420,370 T600,350 L600,600 L0,600 Z" fill="url(%23meadowGrass)"/>
-
-    <!-- Mossy Ancient Stone Torii Arch / Ruins (Scenery Only) -->
     <rect x="220" y="315" width="18" height="155" fill="%2394A3B8"/>
     <rect x="360" y="315" width="18" height="155" fill="%2364748B"/>
     <polygon points="190,315 410,315 400,300 200,300" fill="%23475569"/>
     <polygon points="205,335 395,335 390,325 210,325" fill="%2364748B"/>
-    
-    <!-- Stone Moss details -->
     <ellipse cx="230" cy="380" rx="8" ry="14" fill="%234D7C0F"/>
     <ellipse cx="370" cy="410" rx="7" ry="16" fill="%234D7C0F"/>
-
-    <!-- Whimsical Floating Blue Moonweed Petals / Mana Particles -->
     <circle cx="155" cy="375" r="4" fill="%2360A5FA" filter="url(%23softGlow)"/>
     <circle cx="265" cy="325" r="3" fill="%2393C5FD" filter="url(%23softGlow)"/>
     <circle cx="335" cy="355" r="4.5" fill="%23FDE68A" filter="url(%23softGlow)"/>
@@ -308,7 +290,7 @@ function generateProceduralLandscapeArt(title, category) {
 }
 
 // ============================================================================
-// 3. INTERACTIVE 3D WAYPOINT CARD (Pure Scenery, Gyro/Mouse Tilt)
+// 3. INTERACTIVE 3D WAYPOINT CARD
 // ============================================================================
 function WaypointCard3D({ card, onClick, isInspecting = false }) {
   const cardRef = useRef(null);
@@ -366,7 +348,6 @@ function WaypointCard3D({ card, onClick, isInspecting = false }) {
             : 'bg-stone-900/90 backdrop-blur-md text-stone-400 border border-stone-800 shadow-xl hover:border-stone-700'
         }`}
       >
-        {/* Holographic Iridescent Foil Layer with Specular Glint */}
         {isUnlocked && (
           <div
             className="absolute inset-0 pointer-events-none transition-opacity duration-300 z-30"
@@ -378,7 +359,6 @@ function WaypointCard3D({ card, onClick, isInspecting = false }) {
           />
         )}
 
-        {/* Card Header */}
         <div className="flex items-center justify-between text-xs relative z-20" style={{ transform: 'translateZ(25px)' }}>
           <div className="flex items-center gap-1.5">
             <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full ${
@@ -402,7 +382,6 @@ function WaypointCard3D({ card, onClick, isInspecting = false }) {
           </div>
         </div>
 
-        {/* Artwork Viewport with Pure Landscape Watercolor Frame */}
         <div 
           className="relative mt-3 rounded-2xl overflow-hidden aspect-square border border-amber-300/30 bg-stone-950 flex items-center justify-center shadow-inner group"
           style={{ transform: 'translateZ(35px)' }}
@@ -420,13 +399,11 @@ function WaypointCard3D({ card, onClick, isInspecting = false }) {
                   <span className="font-bold">Conjuring Landscape Scenery...</span>
                 </div>
               )}
-              {/* Aesthetic Stamp Tag */}
               <div className="absolute bottom-2.5 right-2.5 bg-black/75 backdrop-blur-md px-2.5 py-0.5 rounded-lg text-[9px] font-bold text-amber-200 flex items-center gap-1 border border-white/20">
                 <Feather className="w-3 h-3 text-sky-400" /> Watercolor Scenery
               </div>
             </>
           ) : (
-            // Mystery Locked Vault Case
             <div className="flex flex-col items-center justify-center p-6 text-center">
               <div className="w-12 h-12 rounded-2xl bg-stone-800/80 border border-stone-700/80 flex items-center justify-center shadow-lg mb-2 group-hover:scale-110 transition duration-300">
                 <Lock className="w-6 h-6 text-stone-500" />
@@ -441,7 +418,6 @@ function WaypointCard3D({ card, onClick, isInspecting = false }) {
           )}
         </div>
 
-        {/* Card Lore & Title */}
         <div className="mt-3.5 relative z-20" style={{ transform: 'translateZ(20px)' }}>
           <div className="flex items-center justify-between text-xs">
             <span className="text-[10px] text-amber-300/90 font-bold uppercase tracking-wider">{card.category}</span>
@@ -466,7 +442,6 @@ function WaypointCard3D({ card, onClick, isInspecting = false }) {
           )}
         </div>
 
-        {/* Card Footer */}
         <div 
           className="mt-3.5 pt-2.5 border-t border-stone-800/80 flex items-center justify-between text-xs relative z-20"
           style={{ transform: 'translateZ(15px)' }}
@@ -496,7 +471,7 @@ function WaypointCard3D({ card, onClick, isInspecting = false }) {
 }
 
 // ============================================================================
-// 4. INITIAL DEFAULT DATA
+// 4. INITIAL DEFAULT CITIES & TRAVELERS
 // ============================================================================
 const DEFAULT_CITIES = [
   {
@@ -534,176 +509,9 @@ const DEFAULT_CITIES = [
   }
 ];
 
-const DEFAULT_PLACES = [
-  // FUKUOKA LEG PLACES
-  {
-    id: 'p-fuk-1',
-    cityId: 'fukuoka',
-    title: 'Dazaifu Tenmangu Shrine',
-    titleJa: '太宰府天満宮',
-    category: 'Shrines & Temples',
-    costJPY: 0,
-    timeOfDay: 'Morning',
-    checkedIn: true,
-    checkedInBy: 'Lubelter',
-    unlockedAt: 'Oct 24, 2026',
-    address: '4-7-1 Saifu, Dazaifu, Fukuoka',
-    notes: 'Try the fresh Umegae mochi right outside the gate!',
-    rarity: 'Ancient Relic',
-    manaResonance: 920,
-    stars: 5,
-    cardBio: 'A sacred sanctuary dedicated to scholarship, guarded by ancient mossy stone bridges and blooming plum trees.',
-    artworkUrl: generateProceduralLandscapeArt('Dazaifu Tenmangu Shrine', 'Shrines & Temples')
-  },
-  {
-    id: 'p-fuk-2',
-    cityId: 'fukuoka',
-    title: 'Nakasu Yatai Riverside Food Stalls',
-    titleJa: '中洲屋台街・博多ラーメン',
-    category: 'Dining & Street Food',
-    costJPY: 3000,
-    timeOfDay: 'Night',
-    checkedIn: true,
-    checkedInBy: 'Khai',
-    unlockedAt: 'Oct 24, 2026',
-    address: 'Nakasu 8-chome, Hakata Ward',
-    notes: 'Rich tonkotsu foam broth with spring onions, sizzling gyoza by the river.',
-    rarity: 'Hero Crest',
-    manaResonance: 780,
-    stars: 4,
-    cardBio: 'Open-air riverside food tents glowing under lanterns in the cool Fukuoka evening breeze.',
-    artworkUrl: generateProceduralLandscapeArt('Nakasu Yatai Food Stalls Night', 'Dining & Street Food')
-  },
-  {
-    id: 'p-fuk-3',
-    cityId: 'fukuoka',
-    title: 'Ohori Park & Castle Ruins',
-    titleJa: '大濠公園・福岡城跡',
-    category: 'Nature & Walks',
-    costJPY: 250,
-    timeOfDay: 'Afternoon',
-    checkedIn: false,
-    checkedInBy: null,
-    unlockedAt: null,
-    address: '1 Ohorikoen, Chuo Ward, Fukuoka',
-    notes: 'Rent swan boats or walk along the pine tree bridges across the central lake.',
-    rarity: 'Ancient Relic',
-    manaResonance: 810,
-    stars: 4,
-    cardBio: 'A serene moat garden with willow trees reflecting the vast Kyushu sky.',
-    artworkUrl: generateProceduralLandscapeArt('Ohori Park & Castle Ruins', 'Nature & Walks')
-  },
-
-  // KYOTO LEG PLACES
-  {
-    id: 'p-kyo-1',
-    cityId: 'kyoto',
-    title: 'Arashiyama Bamboo Grove',
-    titleJa: '嵐山 竹林の小径',
-    category: 'Nature & Walks',
-    costJPY: 0,
-    timeOfDay: 'Early Morning (7:00 AM)',
-    checkedIn: false,
-    checkedInBy: null,
-    unlockedAt: null,
-    address: 'Ukyo Ward, Kyoto, 616-8394',
-    notes: 'Go at dawn before tourist crowds arrive; listen to the wind rustling through stalks.',
-    rarity: 'Mythic Grimoire',
-    manaResonance: 1050,
-    stars: 5,
-    cardBio: 'Towering jade bamboo stalks piercing the morning mist, casting rays of tranquil green sunlight.',
-    artworkUrl: generateProceduralLandscapeArt('Arashiyama Bamboo Grove', 'Nature & Walks')
-  },
-  {
-    id: 'p-kyo-2',
-    cityId: 'kyoto',
-    title: 'Fushimi Inari Taisha 10,000 Gates',
-    titleJa: '伏見稲荷大社・千本鳥居',
-    category: 'Shrines & Temples',
-    costJPY: 0,
-    timeOfDay: 'Late Afternoon',
-    checkedIn: false,
-    checkedInBy: null,
-    unlockedAt: null,
-    address: '68 Fukakusa Yabunouchicho, Fushimi Ward',
-    notes: 'Hike up to Yotsutsuji intersection for panoramic views of Kyoto.',
-    rarity: 'Mythic Grimoire',
-    manaResonance: 1200,
-    stars: 5,
-    cardBio: 'A winding tunnel of ten thousand vermilion torii gates carving a path through mountain mist.',
-    artworkUrl: generateProceduralLandscapeArt('Fushimi Inari Taisha', 'Shrines & Temples')
-  },
-  {
-    id: 'p-kyo-3',
-    cityId: 'kyoto',
-    title: 'Kinkaku-ji Golden Pavilion',
-    titleJa: '鹿苑寺・金閣寺',
-    category: 'Shrines & Temples',
-    costJPY: 500,
-    timeOfDay: 'Morning',
-    checkedIn: false,
-    checkedInBy: null,
-    unlockedAt: null,
-    address: '1 Kinkakujicho, Kita Ward, Kyoto',
-    notes: 'Watch the gold leaf shimmer across the Kyoko-chi (Mirror Pond).',
-    rarity: 'Ancient Relic',
-    manaResonance: 980,
-    stars: 5,
-    cardBio: 'A shimmering pavilion leafed in pure gold rising over still waters framed by black pines.',
-    artworkUrl: generateProceduralLandscapeArt('Kinkaku-ji Golden Pavilion', 'Shrines & Temples')
-  },
-
-  // OSAKA LEG PLACES
-  {
-    id: 'p-osa-1',
-    cityId: 'osaka',
-    title: 'Dotonbori Canal & Golden Bridges',
-    titleJa: '道頓堀・グリコサイン',
-    category: 'Dining & Street Food',
-    costJPY: 1500,
-    timeOfDay: 'Evening / Night',
-    checkedIn: false,
-    checkedInBy: null,
-    unlockedAt: null,
-    address: '1-10-3 Dotonbori, Chuo Ward, Osaka',
-    notes: 'Grab piping hot takoyaki with dancing bonito flakes and take canal photos.',
-    rarity: 'Hero Crest',
-    manaResonance: 890,
-    stars: 4,
-    cardBio: 'Electric signs casting dazzling reflections over the buzzing canals of food heaven.',
-    artworkUrl: generateProceduralLandscapeArt('Dotonbori Canal Night', 'Dining & Street Food')
-  },
-  {
-    id: 'p-osa-2',
-    cityId: 'osaka',
-    title: 'Osaka Castle Tenshukaku Keep',
-    titleJa: '大坂城・金箔天守閣',
-    category: 'Historical Keep',
-    costJPY: 600,
-    timeOfDay: 'Morning',
-    checkedIn: false,
-    checkedInBy: null,
-    unlockedAt: null,
-    address: '1-1 Osakajo, Chuo Ward, Osaka',
-    notes: 'Walk across the giant granite stone moats; visit the 8th floor observation deck.',
-    rarity: 'Ancient Relic',
-    manaResonance: 950,
-    stars: 5,
-    cardBio: 'An impenetrable citadel with golden tiger crests commanding the central plains of Kansai.',
-    artworkUrl: generateProceduralLandscapeArt('Osaka Castle Tenshukaku Keep', 'Historical Keep')
-  }
-];
-
 const DEFAULT_TRAVELERS = [
   { id: 't1', name: 'Lubelter', avatar: '⚡', role: 'Mage Navigator' },
   { id: 't2', name: 'Khai', avatar: '🍃', role: 'Party Vanguard' }
-];
-
-const DEFAULT_EXPENSES = [
-  { id: 'e1', title: 'Hakata Kushida Gyoza & Oden', amountJPY: 2800, category: 'Ramen & Dining', paymentMethod: 'kitty', date: 'Oct 24' },
-  { id: 'e2', title: '7-Eleven Egg Sandwiches & Green Tea', amountJPY: 1350, category: 'Konbini', paymentMethod: 'kitty', date: 'Oct 24' },
-  { id: 'e3', title: 'Subway One-Day Passes (Fukuoka)', amountJPY: 1280, category: 'Transit', paymentMethod: 'kitty', date: 'Oct 25' },
-  { id: 'e4', title: 'Shrine Fortune Omikuji & Talismans', amountJPY: 2000, category: 'Temples', paymentMethod: 'personal', paidBy: 't1', date: 'Oct 25' }
 ];
 
 const DEFAULT_CONTRIBUTIONS = [
@@ -713,41 +521,25 @@ const DEFAULT_CONTRIBUTIONS = [
   { id: 'c4', travelerId: 't2', amountJPY: 3000, date: 'Oct 24', note: 'Yatai Food Fund' }
 ];
 
-const FLASHCARDS = [
-  { ja: 'このホテル（住所）までお願いします。', ro: 'Kono hoteru made onegaishimasu.', en: 'Please take me to this hotel/address.', type: 'Taxi' },
-  { ja: 'お会計は別々でお願いできますか？', ro: 'Okaikei wa betsubetsu de onegaidekimasu ka?', en: 'Can we please pay separately?', type: 'Dining' },
-  { ja: '豚肉やラード、アルコールは入っていますか？', ro: 'Butaniku ya raado, arukooru wa haitte imasu ka?', en: 'Does this dish contain pork, lard, or alcohol?', type: 'Dietary' },
-  { ja: '一番近いエレベーター・改札口はどこですか？', ro: 'Ichiban chikai erebeetaa / kaisatsuguchi wa doko desu ka?', en: 'Where is the nearest elevator or ticket gate?', type: 'Station' },
-  { ja: 'おすすめのメニューを教えてください。', ro: 'Osusume no menyuu o oshiete kudasai.', en: 'What is your best recommended specialty?', type: 'Dining' },
-  { ja: 'Suica / Pasmo などの交通系ICカードは使えますか？', ro: 'Koutsuukei IC kaado wa tsukaemasu ka?', en: 'Can I pay with my IC transit card?', type: 'Payment' }
-];
-
 // ============================================================================
 // 5. MAIN WAYPOINT APPLICATION COMPONENT
 // ============================================================================
 export default function App() {
-  const [activeTab, setActiveTab] = useState('places'); // 'places' | 'cards' | 'timeline' | 'kitty' | 'ai'
+  const [activeTab, setActiveTab] = useState('places');
   const [now, setNow] = useState(new Date());
 
   // Cloud Sync (Supabase Credentials)
   const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('waypoint_supabase_url') || 'https://rplthksiyiwlqjcjazto.supabase.co');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState(() => localStorage.getItem('waypoint_supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwbHRoa3NpeWl3bHFqY2phenRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3Njg1NDIsImV4cCI6MjEwODM0NDU0Mn0.CyVoRZ9yVQYZYykYANg94dLPBe_kxLeexh9kHEj8dsM');
-  const [cloudSyncStatus, setCloudSyncStatus] = useState('offline'); // 'connected' | 'offline' | 'syncing'
+  const [cloudSyncStatus, setCloudSyncStatus] = useState('syncing');
 
-  // Supabase Client Ref
   const supabaseRef = useRef(null);
 
-  // Initialize Supabase if credentials are provided
+  // Initialize Supabase Client
   useEffect(() => {
     if (supabaseUrl && supabaseAnonKey) {
       const client = getSupabaseClient(supabaseUrl, supabaseAnonKey);
-      if (client) {
-        supabaseRef.current = client;
-        setCloudSyncStatus('connected');
-      } else {
-        supabaseRef.current = null;
-        setCloudSyncStatus('offline');
-      }
+      supabaseRef.current = client;
     } else {
       supabaseRef.current = null;
       setCloudSyncStatus('offline');
@@ -772,22 +564,23 @@ export default function App() {
   });
   const [activeCityId, setActiveCityId] = useState(() => cities[0]?.id || 'fukuoka');
 
-  // Places To Visit per City Leg
+  // Places To Visit (Initialized Empty to wait for Cloud Sync)
   const [places, setPlaces] = useState(() => {
     try {
       const s = localStorage.getItem('waypoint_places');
-      return s ? JSON.parse(s) : DEFAULT_PLACES;
-    } catch { return DEFAULT_PLACES; }
+      return s ? JSON.parse(s) : [];
+    } catch { return []; }
   });
-  const [placesFilter, setPlacesFilter] = useState('all'); // 'all' | 'pending' | 'visited'
+  const [placesFilter, setPlacesFilter] = useState('all');
 
-  // Common Kitty Financials
+  // Common Kitty Financials (Initialized Empty to wait for Cloud Sync)
   const [expenses, setExpenses] = useState(() => {
     try {
       const s = localStorage.getItem('waypoint_expenses');
-      return s ? JSON.parse(s) : DEFAULT_EXPENSES;
-    } catch { return DEFAULT_EXPENSES; }
+      return s ? JSON.parse(s) : [];
+    } catch { return []; }
   });
+
   const [contributions, setContributions] = useState(() => {
     try {
       const s = localStorage.getItem('waypoint_contribs');
@@ -833,20 +626,19 @@ export default function App() {
   useEffect(() => localStorage.setItem('waypoint_supabase_url', supabaseUrl), [supabaseUrl]);
   useEffect(() => localStorage.setItem('waypoint_supabase_key', supabaseAnonKey), [supabaseAnonKey]);
 
- // Real-Time Supabase Sync Handlers
+  // Real-Time Supabase Sync Handlers
   useEffect(() => {
     if (!supabaseRef.current) return;
     const client = supabaseRef.current;
 
-    // Initial fetch from cloud
     const syncFromCloud = async () => {
       try {
         setCloudSyncStatus('syncing');
 
-        // Fetch places from cloud
-        const { data: cloudPlaces } = await client.from('trip_places').select('*');
-        if (cloudPlaces && cloudPlaces.length > 0) {
-          setPlaces(cloudPlaces.map(cp => ({
+        // 1. Fetch places
+        const { data: cloudPlaces, error: pErr } = await client.from('trip_places').select('*');
+        if (!pErr && Array.isArray(cloudPlaces)) {
+          const mappedPlaces = cloudPlaces.map(cp => ({
             id: cp.id,
             cityId: cp.city || cp.cityId || 'fukuoka',
             title: cp.name || cp.title,
@@ -864,13 +656,15 @@ export default function App() {
             stars: 5,
             cardBio: cp.card_bio || `A quiet scenic destination in ${cp.city || 'Japan'} steeped in gentle skies.`,
             artworkUrl: cp.image_url || cp.artworkUrl || generateProceduralLandscapeArt(cp.name || cp.title, cp.category)
-          })));
+          }));
+          setPlaces(mappedPlaces);
+          localStorage.setItem('waypoint_places', JSON.stringify(mappedPlaces));
         }
 
-        // Fetch expenses from cloud (replaces local dummy list with cloud data)
-        const { data: cloudExpenses } = await client.from('trip_expenses').select('*');
-        if (cloudExpenses) {
-          setExpenses(cloudExpenses.map(ce => ({
+        // 2. Fetch expenses (Directly replace with cloud list)
+        const { data: cloudExpenses, error: eErr } = await client.from('trip_expenses').select('*');
+        if (!eErr && Array.isArray(cloudExpenses)) {
+          const mappedExpenses = cloudExpenses.map(ce => ({
             id: ce.id,
             title: ce.title,
             amountJPY: Number(ce.amount_jpy || ce.amountJPY || 0),
@@ -878,7 +672,9 @@ export default function App() {
             paymentMethod: ce.is_kitty ? 'kitty' : 'personal',
             paidBy: ce.paid_by || null,
             date: ce.date || new Date(ce.created_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-          })));
+          }));
+          setExpenses(mappedExpenses);
+          localStorage.setItem('waypoint_expenses', JSON.stringify(mappedExpenses));
         }
 
         setCloudSyncStatus('connected');
@@ -891,18 +687,29 @@ export default function App() {
     syncFromCloud();
 
     // Listen to real-time broadcast changes
-    const channel = client
-      .channel('waypoint-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_places' }, () => {
-        syncFromCloud();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_expenses' }, () => {
-        syncFromCloud();
-      })
-      .subscribe();
+    let channel = null;
+    try {
+      channel = client
+        .channel('waypoint-realtime-channel')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_places' }, () => {
+          syncFromCloud();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_expenses' }, () => {
+          syncFromCloud();
+        })
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            setCloudSyncStatus('connected');
+          }
+        });
+    } catch (e) {
+      console.warn('Realtime subscription error:', e);
+    }
 
     return () => {
-      client.removeChannel(channel);
+      if (channel && client.removeChannel) {
+        client.removeChannel(channel);
+      }
     };
   }, [supabaseUrl, supabaseAnonKey]);
 
@@ -1003,7 +810,7 @@ export default function App() {
 
   const completedCount = activeCityPlaces.filter(p => p.checkedIn).length;
 
-  // Toggle Check-in Place & Unlock Card (with optional cloud push)
+  // Toggle Check-in Place & Unlock Card
   const handleToggleCheckIn = useCallback(async (placeId) => {
     const activeTraveler = travelers.find(t => t.id === activeTravelerId);
     cardAudio.playFoilUnlock();
@@ -1028,7 +835,6 @@ export default function App() {
       return p;
     }));
 
-    // If connected to Supabase, push update
     if (supabaseRef.current && targetUpdated) {
       try {
         await supabaseRef.current.from('trip_places').upsert({
@@ -1065,18 +871,17 @@ export default function App() {
     localStorage.removeItem('waypoint_expenses');
     cardAudio.playClick();
 
-    // If connected to Supabase, clear remote records as well
     if (supabaseRef.current) {
       try {
         await supabaseRef.current.from('trip_expenses').delete().neq('id', '0');
-        await supabaseRef.current.from('trip_contributions').delete().neq('id', '0');
       } catch (err) {
         console.warn('Could not clear Supabase kitty tables:', err);
       }
     }
   };
-  // Generate Pure Landscape Scenery Art via Gemini API
- const handleGenerateLandscapeArt = async (card) => {
+
+  // Generate Landscape Scenery Art via Gemini API
+  const handleGenerateLandscapeArt = async (card) => {
     cardAudio.playClick();
 
     setPlaces(prev => prev.map(p => p.id === card.id ? { ...p, isGeneratingArt: true } : p));
@@ -1087,10 +892,8 @@ export default function App() {
     const apiKey = geminiApiKey || "";
     let finalUrl = null;
 
-    // Frieren aesthetic prompt: soft cerulean sky, glowing mana motes, mossy ruins
     const prompt = `A breathtaking fantasy anime watercolor landscape illustration of ${card.title} in ${currentCity.name}, Japan. In the artistic background style of Frieren Beyond Journeys End and Studio Ghibli. Empty landscape scenery only, absolutely no people and no human figures. Soft golden hour sunlight, towering bright white cumulus clouds in a cerulean sky, moss-covered ancient stone structures, peaceful hills and wildflowers, floating luminous blue mana motes drifting gently in the breeze. Studio anime scenery wallpaper, 8k resolution, serene natural world masterwork.`;
 
-    // 1. Try Gemini Image API if key is present
     if (apiKey) {
       try {
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`;
@@ -1118,88 +921,8 @@ export default function App() {
       }
     }
 
-    // 2. High-Fidelity Frieren Anime Scenery Generator (Zero rate limits, pure scenery)
     if (!finalUrl) {
-      const isNight = card.title.toLowerCase().includes('night') || card.title.toLowerCase().includes('canal') || card.title.toLowerCase().includes('yatai');
-      
-      const seedHue = (card.title.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 40) - 20;
-
-      if (isNight) {
-        finalUrl = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
-          <defs>
-            <linearGradient id="nightSky" x1="0" y1="0" x2="0" y2="100%">
-              <stop offset="0%" stop-color="%230f172a"/>
-              <stop offset="45%" stop-color="%231e1b4b"/>
-              <stop offset="75%" stop-color="%233b0764"/>
-              <stop offset="100%" stop-color="%23701a75"/>
-            </linearGradient>
-            <linearGradient id="waterGlow" x1="0" y1="0" x2="0" y2="100%">
-              <stop offset="0%" stop-color="%23701a75" stop-opacity="0.8"/>
-              <stop offset="100%" stop-color="%23020617"/>
-            </linearGradient>
-            <filter id="manaGlow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-          </defs>
-          <rect width="800" height="800" fill="url(%23nightSky)"/>
-          <circle cx="620" cy="190" r="48" fill="%23fef08a" opacity="0.9" filter="url(%23manaGlow)"/>
-          <!-- Distant mountains -->
-          <polygon points="0,520 220,380 480,530" fill="%231e1b4b" opacity="0.7"/>
-          <polygon points="300,530 560,350 800,520" fill="%230f172a" opacity="0.8"/>
-          <!-- Water canal / river -->
-          <path d="M0,540 Q400,480 800,530 L800,800 L0,800 Z" fill="url(%23waterGlow)"/>
-          <!-- Mossy ancient lantern stones -->
-          <rect x="180" y="470" width="24" height="90" fill="%231e293b"/>
-          <circle cx="192" cy="485" r="14" fill="%23fbbf24" filter="url(%23manaGlow)"/>
-          <rect x="580" y="490" width="22" height="80" fill="%231e293b"/>
-          <circle cx="591" cy="505" r="12" fill="%23f59e0b" filter="url(%23manaGlow)"/>
-          <!-- Floating Frieren mana motes -->
-          <circle cx="210" cy="310" r="5" fill="%2367e8f9" filter="url(%23manaGlow)"/>
-          <circle cx="340" cy="220" r="6" fill="%2393c5fd" filter="url(%23manaGlow)"/>
-          <circle cx="480" cy="280" r="4.5" fill="%23f472b6" filter="url(%23manaGlow)"/>
-          <circle cx="650" cy="380" r="5" fill="%23a7f3d0" filter="url(%23manaGlow)"/>
-          <circle cx="140" cy="420" r="4" fill="%23fde047" filter="url(%23manaGlow)"/>
-        </svg>`;
-      } else {
-        finalUrl = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
-          <defs>
-            <linearGradient id="frierenSky" x1="0" y1="0" x2="0" y2="100%">
-              <stop offset="0%" stop-color="%2338bdf8"/>
-              <stop offset="35%" stop-color="%237dd3fc"/>
-              <stop offset="70%" stop-color="%23bae6fd"/>
-              <stop offset="100%" stop-color="%23fef3c7"/>
-            </linearGradient>
-            <linearGradient id="grassyHills" x1="0" y1="0" x2="0" y2="100%">
-              <stop offset="0%" stop-color="%2384cc16"/>
-              <stop offset="45%" stop-color="%2365a30d"/>
-              <stop offset="100%" stop-color="%233f6212"/>
-            </linearGradient>
-            <filter id="softMana"><feGaussianBlur stdDeviation="5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-          </defs>
-          <rect width="800" height="800" fill="url(%23frierenSky)"/>
-          <!-- Towering Sunlit Anime Clouds -->
-          <circle cx="220" cy="290" r="130" fill="%23ffffff" opacity="0.95"/>
-          <circle cx="380" cy="240" r="160" fill="%23ffffff" opacity="0.98"/>
-          <circle cx="560" cy="300" r="140" fill="%23ffffff" opacity="0.92"/>
-          <circle cx="390" cy="340" r="150" fill="%23f0f9ff" opacity="0.9"/>
-          <!-- Distant mountains -->
-          <polygon points="0,520 260,380 520,530" fill="%2393c5fd" opacity="0.55"/>
-          <polygon points="320,530 580,340 800,540" fill="%2360a5fa" opacity="0.45"/>
-          <!-- Rolling Green Meadow -->
-          <path d="M0,490 Q260,430 540,480 T800,460 L800,800 L0,800 Z" fill="url(%23grassyHills)"/>
-          <!-- Mossy Ancient Stone Torii / Arch Ruins -->
-          <rect x="310" y="420" width="22" height="180" fill="%2394a3b8"/>
-          <rect x="470" y="420" width="22" height="180" fill="%2364748b"/>
-          <polygon points="270,420 530,420 515,400 285,400" fill="%23475569"/>
-          <polygon points="290,445 510,445 500,432 300,432" fill="%2364748b"/>
-          <ellipse cx="321" cy="495" rx="10" ry="18" fill="%234d7c0f"/>
-          <ellipse cx="481" cy="530" rx="9" ry="20" fill="%234d7c0f"/>
-          <!-- Drifting Blue Moonweed Petals & Mana Motes -->
-          <circle cx="230" cy="470" r="5" fill="%2360a5fa" filter="url(%23softMana)"/>
-          <circle cx="360" cy="430" r="4" fill="%2393c5fd" filter="url(%23softMana)"/>
-          <circle cx="440" cy="460" r="5.5" fill="%23fde047" filter="url(%23softMana)"/>
-          <circle cx="580" cy="520" r="4.5" fill="%23f472b6" filter="url(%23softMana)"/>
-          <circle cx="160" cy="530" r="4" fill="%2338bdf8" filter="url(%23softMana)"/>
-        </svg>`;
-      }
+      finalUrl = generateProceduralLandscapeArt(card.title, card.category);
     }
 
     setPlaces(prev => prev.map(p => p.id === card.id ? { ...p, artworkUrl: finalUrl, isGeneratingArt: false } : p));
@@ -1218,7 +941,8 @@ export default function App() {
 
     cardAudio.playFoilUnlock();
   };
-// AI Chat with Gemini Pro / Flash model engine
+
+  // AI Chat with Gemini Pro / Flash model engine
   const handleAiSend = async (forcedText = null) => {
     const text = (forcedText || aiInput).trim();
     if (!text) return;
@@ -1271,9 +995,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
   return (
     <div className="min-h-screen bg-[#FDFBF7] text-slate-900 font-sans flex flex-col pb-24 selection:bg-amber-100 selection:text-amber-900">
       
-      {/* ==================================================================== */}
-      {/* TOP HEADER: DUAL REAL-TIME COUNTDOWN TIMERS & PRO HUD                */}
-      {/* ==================================================================== */}
+      {/* TOP HEADER */}
       <header className="sticky top-0 z-40 bg-[#FDFBF7]/95 backdrop-blur-md border-b border-stone-200/80 px-4 py-2.5">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
           
@@ -1295,7 +1017,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                   )}
                 </span>
                 
-                {/* Active City Dropdown */}
                 <select
                   value={activeCityId}
                   onChange={(e) => {
@@ -1315,7 +1036,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
             </div>
           </div>
 
-          {/* Traveler Profiles, Switcher & Settings */}
+          {/* Traveler Profiles & Settings */}
           <div className="flex items-center gap-1.5">
             <div className="flex bg-stone-100 p-0.5 rounded-lg border border-stone-200 text-xs">
               {travelers.map(t => (
@@ -1346,7 +1067,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
               <Users className="w-3.5 h-3.5" />
             </button>
 
-            {/* Cloud & AI Config Settings Button */}
             <button
               onClick={() => setShowApiSettingsModal(true)}
               className={`p-1.5 rounded-lg border text-xs flex items-center gap-1 transition ${
@@ -1365,10 +1085,9 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
 
         </div>
 
-        {/* PROMINENT DUAL TIMERS BAR (OVERALL TRIP & NEXT CITY WITH LIVE SECONDS) */}
+        {/* TIMERS BAR */}
         <div className="max-w-4xl mx-auto mt-2 pt-2 border-t border-stone-100 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
           
-          {/* 1. Next City Departure Countdown */}
           <div className="bg-amber-50/90 border border-amber-200/80 rounded-xl px-3 py-2 flex flex-col justify-between shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase font-bold text-amber-800 flex items-center gap-1">
@@ -1397,7 +1116,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
             </div>
           </div>
 
-          {/* 2. Total Trip Countdown */}
           <div className="bg-stone-50 border border-stone-200/90 rounded-xl px-3 py-2 flex flex-col justify-between shadow-2xs">
             <span className="text-[10px] uppercase font-bold text-stone-500 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-stone-600" />
@@ -1416,7 +1134,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
             </div>
           </div>
 
-          {/* 3. Common Kitty Reserve */}
           <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl px-3 py-2 flex flex-col justify-between shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase font-bold text-emerald-800 flex items-center gap-1">
@@ -1444,18 +1161,13 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
         </div>
       </header>
 
-      {/* ==================================================================== */}
-      {/* MAIN VIEWPORT TABS                                                  */}
-      {/* ==================================================================== */}
+      {/* MAIN VIEWPORT TABS */}
       <main className="flex-1 max-w-4xl w-full mx-auto p-4 space-y-4">
         
-        {/* ================================================================== */}
-        {/* TAB 1: PLACES TO VISIT (CITY-LEG SPECIFIC CHECKLIST)              */}
-        {/* ================================================================== */}
+        {/* TAB 1: PLACES */}
         {activeTab === 'places' && (
           <div className="space-y-4">
             
-            {/* City Leg Switcher Header Banner */}
             <div className="bg-white rounded-3xl border border-stone-200/90 p-5 shadow-xs space-y-3">
               <div className="flex items-start justify-between flex-wrap gap-2">
                 <div>
@@ -1475,7 +1187,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                   </p>
                 </div>
 
-                {/* Primary Button: + Add Place to Visit */}
                 <button
                   onClick={() => setShowAddPlaceModal(true)}
                   className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition"
@@ -1485,7 +1196,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                 </button>
               </div>
 
-              {/* City Switcher Tabs */}
               <div className="flex items-center gap-1.5 pt-2 border-t border-stone-100 overflow-x-auto">
                 <span className="text-[10px] uppercase font-bold text-stone-400 mr-1">Switch Leg:</span>
                 {cities.map(c => {
@@ -1517,7 +1227,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                 })}
               </div>
 
-              {/* Checklist Filter Bar */}
               <div className="flex items-center justify-between text-xs pt-1 flex-wrap gap-2">
                 <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl">
                   {[
@@ -1549,7 +1258,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
               </div>
             </div>
 
-            {/* Places List Cards */}
             <div className="space-y-3">
               {filteredPlaces.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-dashed border-stone-300 p-8 text-center space-y-2">
@@ -1567,7 +1275,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                       place.checkedIn ? 'border-emerald-300 bg-emerald-50/20' : 'border-stone-200/80 hover:border-stone-300'
                     }`}
                   >
-                    {/* Left: Checkbox & Place Information */}
                     <div className="flex items-start gap-3">
                       <button
                         onClick={() => handleToggleCheckIn(place.id)}
@@ -1624,9 +1331,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                       </div>
                     </div>
 
-                    {/* Right Action Buttons */}
                     <div className="flex items-center gap-2 self-end sm:self-center border-t sm:border-t-0 pt-2 sm:pt-0 border-stone-100 w-full sm:w-auto justify-end">
-                      {/* Directions from Base Hotel Link */}
                       <a
                         href={getMapsUrl(place.title, place.address)}
                         target="_blank"
@@ -1639,7 +1344,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                         <ExternalLink className="w-3 h-3 text-stone-400" />
                       </a>
 
-                      {/* View / Inspect Card */}
                       <button
                         onClick={() => {
                           setInspectedCard(place);
@@ -1655,7 +1359,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                         <span>Card</span>
                       </button>
 
-                      {/* Delete */}
                       <button
                         onClick={() => {
                           setPlaces(prev => prev.filter(p => p.id !== place.id));
@@ -1679,13 +1382,10 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
           </div>
         )}
 
-        {/* ================================================================== */}
-        {/* TAB 2: WAYPOINT DECK (SCENIC FANTASY TRADING CARDS)               */}
-        {/* ================================================================== */}
+        {/* TAB 2: DECK */}
         {activeTab === 'cards' && (
           <div className="space-y-4">
             
-            {/* Waypoint Deck Banner */}
             <div className="bg-gradient-to-r from-[#171622] via-[#0E0D16] to-[#171622] text-amber-100 rounded-3xl p-5 shadow-2xl border-2 border-amber-400/80 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-amber-400/10 via-sky-400/10 to-purple-400/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -1703,7 +1403,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                     Waypoint Deck • Scenery & Memories
                   </h2>
                   <p className="text-xs text-stone-300 mt-0.5 max-w-lg">
-                    Pure fantasy watercolor landscape art. Soft watercolor skies, towering clouds, and tranquil stone arches. Check off destinations to unlock cards with interactive 3D holographic tilt!
+                    Pure fantasy watercolor landscape art. Check off destinations to unlock cards with interactive 3D holographic tilt!
                   </p>
                 </div>
 
@@ -1730,7 +1430,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                 </div>
               </div>
 
-              {/* Progress & City Filter */}
               <div className="mt-4 pt-3.5 border-t border-stone-800/80 flex items-center justify-between text-xs relative z-10 flex-wrap gap-2">
                 <div className="flex items-center gap-3">
                   <span className="font-bold text-amber-300 text-sm font-mono">
@@ -1766,7 +1465,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
               </div>
             </div>
 
-            {/* Waypoint Trading Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
               {places.map(place => (
                 <WaypointCard3D
@@ -1786,13 +1484,10 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
           </div>
         )}
 
-        {/* ================================================================== */}
-        {/* TAB 3: ROUTE & TIMELINE                                           */}
-        {/* ================================================================== */}
+        {/* TAB 3: TIMELINE */}
         {activeTab === 'timeline' && (
           <div className="space-y-4">
             
-            {/* Active Lodging Base */}
             <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-xs">
               <div className="flex items-start justify-between">
                 <div>
@@ -1840,7 +1535,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
               </div>
             </div>
 
-            {/* Editable City Route Timeline */}
             <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -1953,13 +1647,10 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
           </div>
         )}
 
-        {/* ================================================================== */}
-        {/* TAB 4: COMMON KITTY & SPENDING INFOGRAPHICS                       */}
-        {/* ================================================================== */}
+        {/* TAB 4: KITTY */}
         {activeTab === 'kitty' && (
           <div className="space-y-4">
             
-            {/* Kitty Overview Card */}
             <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-xs">
               <div className="flex items-start justify-between">
                 <div>
@@ -1994,7 +1685,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                 </div>
               </div>
 
-              {/* Main JPY / MYR Display */}
               <div className="mt-4">
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-extrabold tracking-tight text-slate-900">
@@ -2006,7 +1696,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                 </div>
               </div>
 
-              {/* Traveler Contributions Breakdown */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-4 pt-3.5 border-t border-stone-100 text-xs">
                 {travelers.map(t => {
                   const travelerPaid = contributions
@@ -2028,7 +1717,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
               </div>
             </div>
 
-            {/* Spending Infographic: What did we spend on the most? */}
             <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-xs space-y-3">
               <div className="flex items-start justify-between">
                 <div>
@@ -2061,7 +1749,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
                 </div>
               )}
 
-              {/* Ranked Category Bars */}
               <div className="space-y-2.5 pt-2">
                 {kittyStats.ranked.map((cat) => (
                   <div key={cat.name} className="space-y-1">
@@ -2080,7 +1767,6 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
               </div>
             </div>
 
-            {/* Expense Log List */}
             <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -2098,53 +1784,57 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
               </div>
 
               <div className="space-y-2 pt-1">
-                {expenses.map(e => (
-                  <div
-                    key={e.id}
-                    className="p-3 bg-stone-50/70 rounded-xl border border-stone-200/60 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
-                          e.paymentMethod === 'kitty' 
-                            ? 'bg-emerald-100 text-emerald-800' 
-                            : 'bg-indigo-100 text-indigo-800'
-                        }`}>
-                          {e.paymentMethod === 'kitty' ? 'Kitty Pool' : 'Personal'}
-                        </span>
-                        <span className="text-stone-400">{e.category}</span>
-                      </div>
-                      <p className="font-semibold text-slate-900 mt-1">{e.title}</p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <p className="font-bold text-slate-900">¥{Number(e.amountJPY).toLocaleString()}</p>
-                        <p className="text-[10px] text-stone-400">RM {jpyToMyr(e.amountJPY)}</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setExpenses(prev => prev.filter(x => x.id !== e.id));
-                          if (supabaseRef.current) {
-                            supabaseRef.current.from('trip_expenses').delete().eq('id', e.id).catch(console.warn);
-                          }
-                        }}
-                        className="text-stone-400 hover:text-rose-600 p-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                {expenses.length === 0 ? (
+                  <div className="text-center py-6 text-stone-400 text-xs italic">
+                    No expenses logged yet. Tap '+ Log Expense' to record one!
                   </div>
-                ))}
+                ) : (
+                  expenses.map(e => (
+                    <div
+                      key={e.id}
+                      className="p-3 bg-stone-50/70 rounded-xl border border-stone-200/60 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                            e.paymentMethod === 'kitty' 
+                              ? 'bg-emerald-100 text-emerald-800' 
+                              : 'bg-indigo-100 text-indigo-800'
+                          }`}>
+                            {e.paymentMethod === 'kitty' ? 'Kitty Pool' : 'Personal'}
+                          </span>
+                          <span className="text-stone-400">{e.category}</span>
+                        </div>
+                        <p className="font-semibold text-slate-900 mt-1">{e.title}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <p className="font-bold text-slate-900">¥{Number(e.amountJPY).toLocaleString()}</p>
+                          <p className="text-[10px] text-stone-400">RM {jpyToMyr(e.amountJPY)}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setExpenses(prev => prev.filter(x => x.id !== e.id));
+                            if (supabaseRef.current) {
+                              supabaseRef.current.from('trip_expenses').delete().eq('id', e.id).catch(console.warn);
+                            }
+                          }}
+                          className="text-stone-400 hover:text-rose-600 p-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
           </div>
         )}
 
-        {/* ================================================================== */}
-        {/* TAB 5: AI CHAT (POWERED BY GEMINI PRO / 3.8 FLASH)                */}
-        {/* ================================================================== */}
+        {/* TAB 5: AI CHAT */}
         {activeTab === 'ai' && (
           <div className="bg-white rounded-2xl border border-stone-200/80 shadow-xs flex flex-col h-[75vh] overflow-hidden">
             
@@ -2245,9 +1935,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
 
       </main>
 
-      {/* ==================================================================== */}
-      {/* BOTTOM NAVIGATION BAR                                                */}
-      {/* ==================================================================== */}
+      {/* BOTTOM NAVIGATION BAR */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200/80 py-2 px-2 shadow-sm">
         <div className="max-w-md mx-auto grid grid-cols-5 gap-1 text-[10px]">
           
@@ -2319,9 +2007,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
         </div>
       </nav>
 
-      {/* ==================================================================== */}
-      {/* MODAL 1: ADD PLACE TO VISIT (CITY SPECIFIC)                          */}
-      {/* ==================================================================== */}
+      {/* MODAL 1: ADD PLACE */}
       {showAddPlaceModal && (
         <AddPlaceModal
           currentCity={currentCity}
@@ -2355,9 +2041,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
         />
       )}
 
-      {/* ==================================================================== */}
-      {/* MODAL 2: WAYPOINT CARD INSPECTION & REGENERATOR                      */}
-      {/* ==================================================================== */}
+      {/* MODAL 2: CARD INSPECTION */}
       {inspectedCard && (
         <CardInspectionModal
           card={inspectedCard}
@@ -2376,9 +2060,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
         />
       )}
 
-      {/* ==================================================================== */}
-      {/* MODAL 3: GEMINI PRO & SUPABASE CLOUD SETTINGS                        */}
-      {/* ==================================================================== */}
+      {/* MODAL 3: API & CLOUD SETTINGS */}
       {showApiSettingsModal && (
         <ApiSettingsModal
           apiKey={geminiApiKey}
@@ -2396,9 +2078,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
         />
       )}
 
-      {/* ==================================================================== */}
-      {/* MODAL 4: MANAGE TRAVELERS                                            */}
-      {/* ==================================================================== */}
+      {/* MODAL 4: MANAGE TRAVELERS */}
       {showManageTravelers && (
         <ManageTravelersModal
           travelers={travelers}
@@ -2412,9 +2092,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
         />
       )}
 
-      {/* ==================================================================== */}
-      {/* MODAL 5: EDIT OR ADD CITY LEG                                        */}
-      {/* ==================================================================== */}
+      {/* MODAL 5: EDIT CITY */}
       {(showEditCityModal || showNewCityModal) && (
         <EditCityModal
           city={showEditCityModal}
@@ -2432,9 +2110,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
         />
       )}
 
-      {/* ==================================================================== */}
-      {/* MODAL 6: TOP UP KITTY POOL                                           */}
-      {/* ==================================================================== */}
+      {/* MODAL 6: TOP UP KITTY */}
       {showTopUpModal && (
         <TopUpModal
           travelers={travelers}
@@ -2447,9 +2123,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
         />
       )}
 
-      {/* ==================================================================== */}
-      {/* MODAL 7: LOG EXPENSE                                                 */}
-      {/* ==================================================================== */}
+      {/* MODAL 7: RECORD EXPENSE */}
       {showExpenseModal && (
         <AddExpenseModal
           travelers={travelers}
@@ -2484,7 +2158,7 @@ Respond with warmth, practical transit and timing tips, food recommendations, an
 }
 
 // ============================================================================
-// 6. MODAL: ADD PLACE TO VISIT (CITY SPECIFIC)
+// 6. MODAL: ADD PLACE TO VISIT
 // ============================================================================
 function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
   const [cityId, setCityId] = useState(currentCity.id);
@@ -2661,7 +2335,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
 }
 
 // ============================================================================
-// 7. MODAL: GEMINI PRO & SUPABASE CLOUD SETTINGS
+// 7. MODAL: SETTINGS
 // ============================================================================
 function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, onSave }) {
   const [tempKey, setTempKey] = useState(apiKey || '');
@@ -2693,7 +2367,6 @@ function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, on
         </div>
 
         <form onSubmit={handleSave} className="space-y-3 text-xs">
-          {/* Section A: Gemini AI Configuration */}
           <div className="border border-stone-200 rounded-2xl p-3 bg-stone-50/50 space-y-2">
             <span className="text-[10px] font-bold text-slate-900 uppercase block">1. Gemini AI Model</span>
             <div>
@@ -2720,7 +2393,6 @@ function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, on
             </div>
           </div>
 
-          {/* Section B: Supabase Real-Time Cloud Sync */}
           <div className="border border-stone-200 rounded-2xl p-3 bg-stone-50/50 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-slate-900 uppercase block">2. Real-Time Cloud Sync</span>
@@ -2748,7 +2420,6 @@ function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, on
                 className="w-full px-2.5 py-1.5 bg-white border border-stone-200 rounded-xl font-mono text-[11px]"
               />
             </div>
-            <p className="text-[9px] text-stone-400">Leave blank to keep app operating in offline mode with local storage.</p>
           </div>
 
           <div className="flex gap-2 pt-1">
@@ -2773,7 +2444,7 @@ function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, on
 }
 
 // ============================================================================
-// 8. MODAL: WAYPOINT CARD INSPECTION & REGENERATOR
+// 8. MODAL: CARD INSPECTION
 // ============================================================================
 function CardInspectionModal({
   card,
@@ -2802,7 +2473,6 @@ function CardInspectionModal({
           <X className="w-4 h-4" />
         </button>
 
-        {/* 3D Card Preview */}
         <div className="pt-2">
           <WaypointCard3D 
             card={{
@@ -2813,7 +2483,6 @@ function CardInspectionModal({
           />
         </div>
 
-        {/* Details & Lore */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs">
             <span className="text-[10px] uppercase font-bold text-amber-300">{card.category}</span>
@@ -2826,7 +2495,6 @@ function CardInspectionModal({
           </p>
         </div>
 
-        {/* Art Engine Regenerator */}
         <div className="bg-stone-900/80 p-3 rounded-2xl border border-stone-700/80 flex items-center justify-between text-xs">
           <div>
             <span className="text-[10px] uppercase font-bold text-amber-300 flex items-center gap-1">
@@ -2845,7 +2513,6 @@ function CardInspectionModal({
           </button>
         </div>
 
-        {/* Travel Notes */}
         <div>
           <label className="text-[10px] uppercase font-bold text-stone-400 block mb-1">
             Travel Notes & Memory
@@ -2860,7 +2527,6 @@ function CardInspectionModal({
           />
         </div>
 
-        {/* Action Buttons */}
         <div className="flex gap-2 pt-1">
           <button
             onClick={onCheckIn}
@@ -2890,7 +2556,7 @@ function CardInspectionModal({
 }
 
 // ============================================================================
-// 9. AUXILIARY MODALS (TRAVELERS, EDIT CITY, KITTY)
+// 9. AUXILIARY MODALS
 // ============================================================================
 function ManageTravelersModal({ travelers, onClose, onUpdate }) {
   const [list, setList] = useState(travelers);
