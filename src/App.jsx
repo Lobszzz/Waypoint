@@ -21,9 +21,10 @@ import {
   Settings,
   ExternalLink,
   Sliders,
-  Database,
   Cloud,
-  CloudOff
+  CloudOff,
+  ArrowUpDown,
+  Navigation
 } from 'lucide-react';
 
 function getSupabaseClient(rawUrl, key) {
@@ -124,15 +125,15 @@ function getSupabaseClient(rawUrl, key) {
 
 const DEFAULT_CITIES = [
   {
-    id: 'fukuoka',
-    name: 'Fukuoka',
-    nameJa: '福岡・博多',
-    hotelName: 'Miyako Hotel Hakata',
-    hotelAddress: '2-1-1 Hakataekihigashi, Hakata Ward, Fukuoka',
-    station: 'JR Hakata Station Direct Gate',
+    id: 'osaka',
+    name: 'Osaka',
+    nameJa: '大阪・食いだおれ',
+    hotelName: 'Swissôtel Nankai Osaka',
+    hotelAddress: '5-1-60 Namba, Chuo Ward, Osaka',
+    station: 'Nankai Namba Station Direct',
     startDate: '2026-10-24T09:00',
     endDate: '2026-10-27T10:30',
-    transitToNext: 'Shinkansen Nozomi (2h 45m)'
+    transitToNext: 'JR Special Rapid (28m)'
   },
   {
     id: 'kyoto',
@@ -143,18 +144,18 @@ const DEFAULT_CITIES = [
     station: 'JR Kyoto Station Central Gate',
     startDate: '2026-10-27T10:30',
     endDate: '2026-10-30T14:00',
-    transitToNext: 'JR Special Rapid Service (28m)'
+    transitToNext: 'Shinkansen Nozomi (2h 45m)'
   },
   {
-    id: 'osaka',
-    name: 'Osaka',
-    nameJa: '大阪・食いだおれ',
-    hotelName: 'Swissôtel Nankai Osaka',
-    hotelAddress: '5-1-60 Namba, Chuo Ward, Osaka',
-    station: 'Nankai Namba Station Direct',
+    id: 'fukuoka',
+    name: 'Fukuoka',
+    nameJa: '福岡・博多',
+    hotelName: 'Miyako Hotel Hakata',
+    hotelAddress: '2-1-1 Hakataekihigashi, Hakata Ward, Fukuoka',
+    station: 'JR Hakata Station Direct Gate',
     startDate: '2026-10-30T14:00',
     endDate: '2026-11-03T18:00',
-    transitToNext: 'Nankai Rapi:t to KIX Airport (35m)'
+    transitToNext: 'Fukuoka Airport Subway (5m)'
   }
 ];
 
@@ -194,7 +195,7 @@ export default function App() {
       return s ? JSON.parse(s) : DEFAULT_CITIES;
     } catch { return DEFAULT_CITIES; }
   });
-  const [activeCityId, setActiveCityId] = useState(() => cities[0]?.id || 'fukuoka');
+  const [activeCityId, setActiveCityId] = useState(() => cities[0]?.id || 'osaka');
 
   const [places, setPlaces] = useState(() => {
     try {
@@ -203,6 +204,7 @@ export default function App() {
     } catch { return []; }
   });
   const [placesFilter, setPlacesFilter] = useState('all');
+  const [sortByDistance, setSortByDistance] = useState(false);
 
   const [expenses, setExpenses] = useState(() => {
     try {
@@ -240,33 +242,25 @@ export default function App() {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const chatEndRef = useRef(null);
 
-  useEffect(() => localStorage.setItem('waypoint_travelers', JSON.stringify(travelers)), [travelers]);
-  useEffect(() => localStorage.setItem('waypoint_cities', JSON.stringify(cities)), [cities]);
-  useEffect(() => localStorage.setItem('waypoint_places', JSON.stringify(places)), [places]);
-  useEffect(() => localStorage.setItem('waypoint_expenses', JSON.stringify(expenses)), [expenses]);
-  useEffect(() => localStorage.setItem('waypoint_contribs', JSON.stringify(contributions)), [contributions]);
-  useEffect(() => localStorage.setItem('waypoint_gemini_key', geminiApiKey), [geminiApiKey]);
-  useEffect(() => localStorage.setItem('waypoint_gemini_model', selectedGeminiModel), [selectedGeminiModel]);
-  useEffect(() => localStorage.setItem('waypoint_supabase_url', supabaseUrl), [supabaseUrl]);
-  useEffect(() => localStorage.setItem('waypoint_supabase_key', supabaseAnonKey), [supabaseAnonKey]);
-
-  // MASTER SYNC FUNCTION: PULLS ALL FEATURES FROM SUPABASE
+  // Sync to Cloud
   const syncFromCloud = useCallback(async () => {
     if (!supabaseRef.current) return;
     try {
       setCloudSyncStatus('syncing');
 
-      // 1. Sync Places
+      // 1. Places
       const { data: cloudPlaces, error: pErr } = await supabaseRef.current.from('trip_places').select('*');
       if (!pErr && Array.isArray(cloudPlaces)) {
         const mappedPlaces = cloudPlaces.map(cp => ({
           id: cp.id,
-          cityId: cp.city || cp.cityId || 'fukuoka',
+          cityId: cp.city || cp.cityId || 'osaka',
           title: cp.name || cp.title,
           titleJa: cp.jp_name || cp.titleJa || '',
           category: cp.category || 'Shrines & Temples',
           timeOfDay: cp.time_of_day || cp.timeOfDay || 'Morning',
           costJPY: Number(cp.est_cost || cp.costJPY || 0),
+          distanceKm: Number(cp.distance_km || 0),
+          transitMins: Number(cp.transit_mins || 0),
           checkedIn: !!(cp.visited || cp.checkedIn),
           checkedInBy: cp.checked_in_by || cp.checkedInBy || null,
           unlockedAt: cp.unlocked_at || cp.unlockedAt || null,
@@ -276,7 +270,7 @@ export default function App() {
         setPlaces(mappedPlaces);
       }
 
-      // 2. Sync Expenses
+      // 2. Expenses
       const { data: cloudExpenses, error: eErr } = await supabaseRef.current.from('trip_expenses').select('*');
       if (!eErr && Array.isArray(cloudExpenses)) {
         const mappedExpenses = cloudExpenses.map(ce => ({
@@ -291,30 +285,32 @@ export default function App() {
         setExpenses(mappedExpenses);
       }
 
-      // 3. Sync Travelers
+      // 3. Travelers
       const { data: cloudTravelers, error: tErr } = await supabaseRef.current.from('trip_travelers').select('*');
       if (!tErr && Array.isArray(cloudTravelers) && cloudTravelers.length > 0) {
         setTravelers(cloudTravelers);
       }
 
-      // 4. Sync Cities
+      // 4. Cities
       const { data: cloudCities, error: cErr } = await supabaseRef.current.from('trip_cities').select('*');
       if (!cErr && Array.isArray(cloudCities) && cloudCities.length > 0) {
-        const mappedCities = cloudCities.map(cc => ({
+        // Sort chronologically by start date
+        const sorted = cloudCities.sort((a, b) => new Date(a.start_date || a.startDate) - new Date(b.start_date || b.startDate));
+        const mappedCities = sorted.map(cc => ({
           id: cc.id,
           name: cc.name,
-          nameJa: cc.name_ja || '',
-          hotelName: cc.hotel_name || '',
-          hotelAddress: cc.hotel_address || '',
+          nameJa: cc.name_ja || cc.nameJa || '',
+          hotelName: cc.hotel_name || cc.hotelName || '',
+          hotelAddress: cc.hotel_address || cc.hotelAddress || '',
           station: cc.station || '',
-          startDate: cc.start_date || '2026-10-24T09:00',
-          endDate: cc.end_date || '2026-10-27T10:30',
-          transitToNext: cc.transit_to_next || ''
+          startDate: cc.start_date || cc.startDate || '2026-10-24T09:00',
+          endDate: cc.end_date || cc.endDate || '2026-10-27T10:30',
+          transitToNext: cc.transit_to_next || cc.transitToNext || ''
         }));
         setCities(mappedCities);
       }
 
-      // 5. Sync Contributions / Kitty Top-ups
+      // 5. Contributions
       const { data: cloudContribs, error: cbErr } = await supabaseRef.current.from('trip_contributions').select('*');
       if (!cbErr && Array.isArray(cloudContribs)) {
         const mappedContribs = cloudContribs.map(cc => ({
@@ -333,7 +329,6 @@ export default function App() {
     }
   }, []);
 
-  // REALTIME LISTENERS FOR ALL TABLES
   useEffect(() => {
     syncFromCloud();
     let channel = null;
@@ -379,29 +374,69 @@ export default function App() {
   const currentCity = useMemo(() => cities[activeCityIndex] || cities[0] || DEFAULT_CITIES[0], [cities, activeCityIndex]);
   const nextCity = useMemo(() => cities[activeCityIndex + 1] || null, [cities, activeCityIndex]);
 
+  // SMART TWO-PHASE COUNTDOWN
   const timers = useMemo(() => {
-    if (!cities || cities.length === 0) return { tripD: 0, tripH: 0, tripM: 0, tripS: 0, nextD: 0, nextH: 0, nextM: 0, nextS: 0, pctCity: 0, isFinal: false };
-    const curTime = now.getTime();
-    const tripEndTime = new Date(cities[cities.length - 1].endDate).getTime();
-    const tripDiff = tripEndTime - curTime;
-    const tripD = Math.max(0, Math.floor(tripDiff / (1000 * 60 * 60 * 24)));
-    const tripH = Math.max(0, Math.floor((tripDiff / (1000 * 60 * 60)) % 24));
-    const tripM = Math.max(0, Math.floor((tripDiff / (1000 * 60)) % 60));
-    const tripS = Math.max(0, Math.floor((tripDiff / 1000) % 60));
+    if (!cities || cities.length === 0) {
+      return { 
+        isPreTrip: false, 
+        mainTitle: 'Tour Concluded', 
+        mainTime: '0d 0h 0m 0s',
+        cityTime: '0d 0h 0m 0s',
+        pctCity: 100, 
+        isFinal: true 
+      };
+    }
 
+    const curTime = now.getTime();
+    const tripStartTime = new Date(cities[0].startDate).getTime();
+    const tripEndTime = new Date(cities[cities.length - 1].endDate).getTime();
+
+    // 1. Check if Trip has started or not
+    const isPreTrip = curTime < tripStartTime;
+
+    let mainTitle = '';
+    let mainDiff = 0;
+
+    if (isPreTrip) {
+      mainTitle = '⏳ Countdown to Japan';
+      mainDiff = tripStartTime - curTime;
+    } else if (curTime <= tripEndTime) {
+      mainTitle = '🗾 Days Left in Japan';
+      mainDiff = tripEndTime - curTime;
+    } else {
+      mainTitle = '🎌 Tour Concluded';
+      mainDiff = 0;
+    }
+
+    const mD = Math.max(0, Math.floor(mainDiff / (1000 * 60 * 60 * 24)));
+    const mH = Math.max(0, Math.floor((mainDiff / (1000 * 60 * 60)) % 24));
+    const mM = Math.max(0, Math.floor((mainDiff / (1000 * 60)) % 60));
+    const mS = Math.max(0, Math.floor((mainDiff / 1000) % 60));
+    const mainTime = `${mD}d ${mH}h ${mM}m ${mS}s`;
+
+    // 2. City Leg Timer
     const curStart = new Date(currentCity.startDate).getTime();
     const curEnd = new Date(currentCity.endDate).getTime();
     const nextDiff = curEnd - curTime;
-    const nextD = Math.max(0, Math.floor(nextDiff / (1000 * 60 * 60 * 24)));
-    const nextH = Math.max(0, Math.floor((nextDiff / (1000 * 60 * 60)) % 24));
-    const nextM = Math.max(0, Math.floor((nextDiff / (1000 * 60)) % 60));
-    const nextS = Math.max(0, Math.floor((nextDiff / 1000) % 60));
+
+    const nD = Math.max(0, Math.floor(nextDiff / (1000 * 60 * 60 * 24)));
+    const nH = Math.max(0, Math.floor((nextDiff / (1000 * 60 * 60)) % 24));
+    const nM = Math.max(0, Math.floor((nextDiff / (1000 * 60)) % 60));
+    const nS = Math.max(0, Math.floor((nextDiff / 1000) % 60));
+    const cityTime = `${nD}d ${nH}h ${nM}m ${nS}s`;
 
     const totalSpan = Math.max(1, curEnd - curStart);
     const elapsed = Math.max(0, Math.min(totalSpan, curTime - curStart));
     const pctCity = Math.min(100, Math.max(0, Math.round((elapsed / totalSpan) * 100)));
 
-    return { tripD, tripH, tripM, tripS, nextD, nextH, nextM, nextS, pctCity, isFinal: !nextCity };
+    return {
+      isPreTrip,
+      mainTitle,
+      mainTime,
+      cityTime,
+      pctCity,
+      isFinal: !nextCity
+    };
   }, [cities, currentCity, nextCity, now]);
 
   const kittyStats = useMemo(() => {
@@ -437,15 +472,21 @@ export default function App() {
     };
   }, [contributions, expenses]);
 
+  // Active City Places & Distance Sorting
   const activeCityPlaces = useMemo(() => {
     return places.filter(p => p.cityId === activeCityId);
   }, [places, activeCityId]);
 
   const filteredPlaces = useMemo(() => {
-    if (placesFilter === 'pending') return activeCityPlaces.filter(p => !p.checkedIn);
-    if (placesFilter === 'visited') return activeCityPlaces.filter(p => p.checkedIn);
-    return activeCityPlaces;
-  }, [activeCityPlaces, placesFilter]);
+    let list = activeCityPlaces;
+    if (placesFilter === 'pending') list = activeCityPlaces.filter(p => !p.checkedIn);
+    if (placesFilter === 'visited') list = activeCityPlaces.filter(p => p.checkedIn);
+
+    if (sortByDistance) {
+      return [...list].sort((a, b) => (Number(a.distanceKm) || 999) - (Number(b.distanceKm) || 999));
+    }
+    return list;
+  }, [activeCityPlaces, placesFilter, sortByDistance]);
 
   const completedCount = activeCityPlaces.filter(p => p.checkedIn).length;
 
@@ -479,6 +520,8 @@ export default function App() {
           visited: targetUpdated.checkedIn,
           checked_in_by: targetUpdated.checkedInBy,
           unlocked_at: targetUpdated.unlockedAt,
+          distance_km: targetUpdated.distanceKm,
+          transit_mins: targetUpdated.transitMins,
           notes: targetUpdated.notes
         });
       } catch {}
@@ -491,7 +534,6 @@ export default function App() {
     return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=transit`;
   };
 
-  // CLOUD RESET FOR COMMON KITTY (DELETES CONTRIBUTIONS AND EXPENSES IN CLOUD)
   const handleResetKitty = async () => {
     if (!window.confirm("Reset Common Kitty back to ¥0 for everyone?")) return;
     setContributions([]);
@@ -579,7 +621,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   className="text-[11px] font-bold bg-stone-100 border border-stone-200 text-stone-800 rounded-md px-1.5 py-0.5 focus:outline-none cursor-pointer ml-1"
                 >
                   {cities.map(c => (
-                    <option key={c.id} value={c.id}>{c.name} ({c.nameJa.split('・')[0]})</option>
+                    <option key={c.id} value={c.id}>{c.name} ({c.nameJa ? c.nameJa.split('・')[0] : c.name})</option>
                   ))}
                 </select>
               </div>
@@ -630,21 +672,47 @@ Respond with practical transit tips, timing advice, food specialties, and concis
           </div>
         </div>
 
-        {/* TIMERS */}
+        {/* SMART DUAL-MODE COUNTDOWN TIMERS */}
         <div className="max-w-4xl mx-auto mt-2 pt-2 border-t border-stone-100 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-          <div className="bg-amber-50/90 border border-amber-200/80 rounded-xl px-3 py-2 flex flex-col justify-between">
+          
+          {/* Box 1: Trip Status / Countdown to Japan */}
+          <div className={`${timers.isPreTrip ? 'bg-indigo-50/90 border-indigo-200/80 text-indigo-950' : 'bg-stone-50 border-stone-200/90 text-stone-800'} border rounded-xl px-3 py-2 flex flex-col justify-between`}>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-bold text-amber-800 flex items-center gap-1">
-                <Train className="w-3.5 h-3.5 text-amber-600" />
-                {nextCity ? `Depart to ${nextCity.name}` : 'Final City Leg'}
+              <span className={`text-[10px] uppercase font-bold flex items-center gap-1 ${timers.isPreTrip ? 'text-indigo-800' : 'text-stone-500'}`}>
+                <Clock className="w-3.5 h-3.5" />
+                {timers.mainTitle}
               </span>
-              <span className="text-[10px] font-semibold text-amber-700">
-                {currentCity.transitToNext ? currentCity.transitToNext.split('(')[0] : 'Express'}
+              <span className="text-[10px] font-medium text-stone-400">
+                {cities[0] ? new Date(cities[0].startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
               </span>
             </div>
             <div className="flex items-baseline justify-between mt-1">
               <span className="font-extrabold text-slate-900 text-sm font-mono">
-                {timers.isFinal ? 'Tour Concluded' : `${timers.nextD}d ${timers.nextH}h ${timers.nextM}m ${timers.nextS}s`}
+                {timers.mainTime}
+              </span>
+              <button 
+                onClick={() => setShowEditCityModal(cities[0])}
+                className="text-[10px] text-stone-400 hover:text-slate-800 underline"
+              >
+                Edit Dates
+              </button>
+            </div>
+          </div>
+
+          {/* Box 2: Current City Leg Countdown */}
+          <div className="bg-amber-50/90 border border-amber-200/80 rounded-xl px-3 py-2 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase font-bold text-amber-800 flex items-center gap-1">
+                <Train className="w-3.5 h-3.5 text-amber-600" />
+                {nextCity ? `Time Left in ${currentCity.name}` : `Final Leg (${currentCity.name})`}
+              </span>
+              <span className="text-[10px] font-semibold text-amber-700">
+                {nextCity ? `➔ ${nextCity.name}` : 'Departure'}
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="font-extrabold text-slate-900 text-sm font-mono">
+                {timers.cityTime}
               </span>
               <span className="text-[10px] font-medium text-stone-500">
                 {timers.pctCity}% spent
@@ -658,22 +726,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
             </div>
           </div>
 
-          <div className="bg-stone-50 border border-stone-200/90 rounded-xl px-3 py-2 flex flex-col justify-between">
-            <span className="text-[10px] uppercase font-bold text-stone-500 flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-stone-600" />
-              Total Time Left
-            </span>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className="font-extrabold text-slate-900 text-sm font-mono">
-                {timers.tripD}d {timers.tripH}h {timers.tripM}m {timers.tripS}s
-              </span>
-              <span className="text-[10px] text-stone-400">Ends Nov 03</span>
-            </div>
-            <div className="text-[10px] text-stone-400 mt-0.5 truncate">
-              {cities.map(c => c.name).join(' ➔ ')}
-            </div>
-          </div>
-
+          {/* Box 3: Kitty Summary */}
           <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl px-3 py-2 flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase font-bold text-emerald-800 flex items-center gap-1">
@@ -702,8 +755,12 @@ Respond with practical transit tips, timing advice, food specialties, and concis
 
       {/* MAIN VIEWPORT */}
       <main className="flex-1 max-w-4xl w-full mx-auto p-4 space-y-4">
+        
+        {/* TAB 1: PLACES */}
         {activeTab === 'places' && (
           <div className="space-y-4">
+            
+            {/* LODGING & LEG CONTROL CARD */}
             <div className="bg-white rounded-3xl border border-stone-200/90 p-5 shadow-xs space-y-3">
               <div className="flex items-start justify-between flex-wrap gap-2">
                 <div>
@@ -718,9 +775,16 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   <h2 className="text-xl font-black text-slate-900 mt-1">
                     Places To Visit in {currentCity.name}
                   </h2>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Base Lodging: <span className="font-bold text-slate-800">{currentCity.hotelName}</span>
-                  </p>
+                  <div className="flex items-center gap-1.5 mt-1 text-xs text-stone-600">
+                    <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                    <span>Lodging: <strong className="text-slate-900">{currentCity.hotelName}</strong> ({currentCity.hotelAddress})</span>
+                    <button 
+                      onClick={() => setShowEditCityModal(currentCity)}
+                      className="ml-1 text-[11px] text-amber-700 hover:underline flex items-center gap-0.5"
+                    >
+                      <Edit3 className="w-3 h-3" /> Edit Base
+                    </button>
+                  </div>
                 </div>
                 <button
                   onClick={() => setShowAddPlaceModal(true)}
@@ -731,6 +795,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                 </button>
               </div>
 
+              {/* CITY TABS SWITCHER */}
               <div className="flex items-center gap-1.5 pt-2 border-t border-stone-100 overflow-x-auto">
                 <span className="text-[10px] uppercase font-bold text-stone-400 mr-1">Switch Leg:</span>
                 {cities.map(c => {
@@ -756,8 +821,15 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                     </button>
                   );
                 })}
+                <button
+                  onClick={() => setShowNewCityModal(true)}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold border border-dashed border-stone-300 text-stone-500 hover:bg-stone-50 flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> New Leg
+                </button>
               </div>
 
+              {/* FILTER & DISTANCE SORT BAR */}
               <div className="flex items-center justify-between text-xs pt-1 flex-wrap gap-2">
                 <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl">
                   {[
@@ -776,26 +848,42 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                     </button>
                   ))}
                 </div>
-                <div className="text-xs text-stone-500 font-medium">
-                  {completedCount === activeCityPlaces.length && activeCityPlaces.length > 0 ? (
-                    <span className="text-emerald-600 font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> All spots visited!
-                    </span>
-                  ) : (
-                    <span>{activeCityPlaces.length - completedCount} spots remaining</span>
-                  )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSortByDistance(prev => !prev)}
+                    className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 border transition ${
+                      sortByDistance 
+                        ? 'bg-amber-500 text-white border-amber-500' 
+                        : 'bg-stone-100 text-stone-700 border-stone-200 hover:bg-stone-200'
+                    }`}
+                  >
+                    <ArrowUpDown className="w-3 h-3" />
+                    <span>{sortByDistance ? 'Sorted: Shortest Distance' : 'Sort by Distance'}</span>
+                  </button>
+
+                  <span className="text-xs text-stone-400">
+                    {completedCount === activeCityPlaces.length && activeCityPlaces.length > 0 ? (
+                      <span className="text-emerald-600 font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> All spots visited!
+                      </span>
+                    ) : (
+                      <span>{activeCityPlaces.length - completedCount} remaining</span>
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
 
+            {/* PLACES LIST */}
             <div className="space-y-3">
               {filteredPlaces.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-dashed border-stone-300 p-8 text-center space-y-2">
                   <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
                     <Compass className="w-5 h-5" />
                   </div>
-                  <h3 className="font-bold text-sm text-slate-800">No places in this view</h3>
-                  <p className="text-xs text-stone-500">Add destinations for {currentCity.name} using the button above.</p>
+                  <h3 className="font-bold text-sm text-slate-800">No places found in {currentCity.name}</h3>
+                  <p className="text-xs text-stone-500">Add destinations for this city using the button above.</p>
                 </div>
               ) : (
                 filteredPlaces.map(place => (
@@ -824,6 +912,12 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                           {place.timeOfDay && (
                             <span className="text-[10px] text-amber-800 font-medium bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/50">
                               {place.timeOfDay}
+                            </span>
+                          )}
+                          {place.distanceKm > 0 && (
+                            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/60 flex items-center gap-0.5">
+                              <Navigation className="w-2.5 h-2.5" />
+                              {place.distanceKm} km from {currentCity.hotelName.split(' ')[0]}
                             </span>
                           )}
                           {place.costJPY > 0 && (
@@ -893,7 +987,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
           </div>
         )}
 
-        {/* TAB 2: TIMELINE */}
+        {/* TAB 2: TIMELINE (EDIT / ADD / DELETE LEGS) */}
         {activeTab === 'timeline' && (
           <div className="space-y-4">
             <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-xs">
@@ -913,7 +1007,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   className="px-2.5 py-1.5 rounded-lg border border-stone-200 text-stone-700 text-xs font-medium hover:bg-stone-50 flex items-center gap-1"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
-                  Edit Leg
+                  Edit Leg & Hotel
                 </button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 pt-3 border-t border-stone-100 text-xs">
@@ -933,7 +1027,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   <div>
                     <span className="text-[10px] text-stone-400 uppercase font-medium">Time in {currentCity.name}</span>
                     <p className="text-slate-800 font-semibold font-mono">
-                      {timers.nextD}d {timers.nextH}h {timers.nextM}m {timers.nextS}s
+                      {timers.cityTime}
                     </p>
                   </div>
                 </div>
@@ -943,8 +1037,8 @@ Respond with practical transit tips, timing advice, food specialties, and concis
             <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Trip Route</h3>
-                  <p className="text-xs text-stone-500">Hotels, transfer schedules, and destinations</p>
+                  <h3 className="text-sm font-bold text-slate-900">Trip Itinerary Route</h3>
+                  <p className="text-xs text-stone-500">Edit dates, add new stops, or adjust hotels anytime</p>
                 </div>
                 <button
                   onClick={() => setShowNewCityModal(true)}
@@ -975,7 +1069,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                               <h4 className="font-bold text-sm text-slate-900">{city.name}</h4>
                               {isOrigin && (
                                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-stone-200 text-stone-700">
-                                  Origin
+                                  First Leg
                                 </span>
                               )}
                               {isCurrent && (
@@ -991,12 +1085,14 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                           <button
                             onClick={() => setShowEditCityModal(city)}
                             className="p-1.5 rounded-md hover:bg-stone-100 text-stone-500 hover:text-slate-900"
+                            title="Edit Leg"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           {cities.length > 1 && (
                             <button
                               onClick={async () => {
+                                if (!window.confirm(`Delete ${city.name} leg from itinerary?`)) return;
                                 const cityIdToDelete = city.id;
                                 setCities(prev => prev.filter(c => c.id !== cityIdToDelete));
                                 if (supabaseRef.current) {
@@ -1006,6 +1102,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                                 }
                               }}
                               className="p-1.5 rounded-md hover:bg-rose-50 text-stone-400 hover:text-rose-600"
+                              title="Delete Leg"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1020,8 +1117,8 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                           </span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-stone-400 block uppercase font-medium">Hotel</span>
-                          <span className="truncate block font-medium text-slate-800">{city.hotelName}</span>
+                          <span className="text-[10px] text-stone-400 block uppercase font-medium">Hotel & Station</span>
+                          <span className="truncate block font-medium text-slate-800">{city.hotelName} ({city.station})</span>
                         </div>
                       </div>
                       {city.transitToNext && (
@@ -1369,6 +1466,8 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   category: newPlace.category,
                   time_of_day: newPlace.timeOfDay,
                   est_cost: newPlace.costJPY,
+                  distance_km: newPlace.distanceKm,
+                  transit_mins: newPlace.transitMins,
                   notes: newPlace.notes,
                   visited: false
                 }]);
@@ -1432,8 +1531,11 @@ Respond with practical transit tips, timing advice, food specialties, and concis
             setShowNewCityModal(false);
           }}
           onSave={async (saved) => {
-            if (showNewCityModal) setCities(prev => [...prev, saved]);
-            else setCities(prev => prev.map(c => c.id === saved.id ? saved : c));
+            if (showNewCityModal) {
+              setCities(prev => [...prev, saved]);
+            } else {
+              setCities(prev => prev.map(c => c.id === saved.id ? saved : c));
+            }
             setShowEditCityModal(null);
             setShowNewCityModal(false);
 
@@ -1515,6 +1617,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
   const [category, setCategory] = useState('Shrines & Temples');
   const [timeOfDay, setTimeOfDay] = useState('Morning');
   const [costJPY, setCostJPY] = useState('');
+  const [distanceKm, setDistanceKm] = useState('');
   const [notes, setNotes] = useState('');
   const [address, setAddress] = useState('');
 
@@ -1529,6 +1632,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
       category,
       timeOfDay,
       costJPY: Number(costJPY) || 0,
+      distanceKm: Number(distanceKm) || 0,
       checkedIn: false,
       checkedInBy: null,
       unlockedAt: null,
@@ -1539,7 +1643,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl">
+      <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center">
           <h3 className="font-bold text-sm text-slate-900">+ Add Place to Visit</h3>
           <button onClick={onClose} className="text-stone-400 hover:text-slate-900">
@@ -1566,7 +1670,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Arashiyama Bamboo Grove"
+              placeholder="e.g. Dotonbori Canal"
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl"
             />
           </div>
@@ -1576,7 +1680,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               type="text"
               value={titleJa}
               onChange={(e) => setTitleJa(e.target.value)}
-              placeholder="e.g. 嵐山 竹林の小径"
+              placeholder="e.g. 道頓堀"
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl font-serif"
             />
           </div>
@@ -1611,16 +1715,30 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               </select>
             </div>
           </div>
-          <div>
-            <label className="text-[10px] text-stone-500 uppercase font-medium">Estimated Cost (¥ JPY)</label>
-            <input
-              type="number"
-              min="0"
-              value={costJPY}
-              onChange={(e) => setCostJPY(e.target.value)}
-              placeholder="e.g. 500"
-              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl font-mono"
-            />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-stone-500 uppercase font-medium">Est. Cost (¥ JPY)</label>
+              <input
+                type="number"
+                min="0"
+                value={costJPY}
+                onChange={(e) => setCostJPY(e.target.value)}
+                placeholder="e.g. 500"
+                className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl font-mono"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-stone-500 uppercase font-medium">Distance from Hotel (km)</label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={distanceKm}
+                onChange={(e) => setDistanceKm(e.target.value)}
+                placeholder="e.g. 1.2"
+                className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl font-mono"
+              />
+            </div>
           </div>
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Address / Station Exit</label>
@@ -1628,7 +1746,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="e.g. Near Arashiyama Station"
+              placeholder="e.g. Near Namba Station"
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl"
             />
           </div>
@@ -1638,7 +1756,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Visit early to avoid tourist crowds..."
+              placeholder="e.g. Takoyaki stalls by the canal..."
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl"
             />
           </div>
@@ -1842,24 +1960,24 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
     e.preventDefault();
     if (!name.trim()) return;
     onSave({
-      id: city?.id || 'city-' + Date.now(),
-      name,
-      nameJa,
-      hotelName,
-      hotelAddress,
-      station,
+      id: city?.id || name.toLowerCase().replace(/\s+/g, '-'),
+      name: name.trim(),
+      nameJa: nameJa.trim() || name.trim(),
+      hotelName: hotelName.trim() || 'Central Hotel',
+      hotelAddress: hotelAddress.trim() || 'Station Area, Japan',
+      station: station.trim() || 'JR Main Station',
       startDate,
       endDate,
-      transitToNext
+      transitToNext: transitToNext.trim()
     });
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl p-5 max-w-sm w-full space-y-3 shadow-xl">
+      <div className="bg-white rounded-2xl p-5 max-w-sm w-full space-y-3 shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center">
           <h3 className="font-bold text-sm text-slate-900">
-            {isNew ? '+ Add New Leg' : 'Edit Leg'}
+            {isNew ? '+ Add New City Leg' : `Edit Leg • ${city?.name}`}
           </h3>
           <button onClick={onClose} className="text-stone-400 hover:text-slate-900">
             <X className="w-4 h-4" />
@@ -1867,14 +1985,14 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
         </div>
         <form onSubmit={handleSubmit} className="space-y-2.5 text-xs">
           <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">City Name</label>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">City / Area Name</label>
             <input
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Fukuoka"
-              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-slate-900"
+              placeholder="e.g. Osaka"
+              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-slate-900 font-bold"
             />
           </div>
           <div>
@@ -1883,13 +2001,13 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
               type="text"
               value={nameJa}
               onChange={(e) => setNameJa(e.target.value)}
-              placeholder="e.g. 福岡・博多"
+              placeholder="e.g. 大阪・道頓堀"
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-slate-900 font-serif"
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] font-medium text-stone-500 uppercase">Arrival</label>
+              <label className="text-[10px] font-medium text-stone-500 uppercase">Arrival Date & Time</label>
               <input
                 type="datetime-local"
                 required
@@ -1899,7 +2017,7 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
               />
             </div>
             <div>
-              <label className="text-[10px] font-medium text-stone-500 uppercase">Departure</label>
+              <label className="text-[10px] font-medium text-stone-500 uppercase">Departure Date & Time</label>
               <input
                 type="datetime-local"
                 required
@@ -1910,27 +2028,37 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
             </div>
           </div>
           <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">Hotel</label>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Hotel / Lodging Name</label>
             <input
               type="text"
               value={hotelName}
               onChange={(e) => setHotelName(e.target.value)}
-              placeholder="e.g. Miyako Hotel Hakata"
+              placeholder="e.g. Swissôtel Nankai Osaka"
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
             />
           </div>
           <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">Address / Station Exit</label>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Hotel Full Address</label>
             <input
               type="text"
               value={hotelAddress}
               onChange={(e) => setHotelAddress(e.target.value)}
-              placeholder="e.g. 2-1-1 Hakataekihigashi"
+              placeholder="e.g. 5-1-60 Namba, Chuo Ward, Osaka"
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
             />
           </div>
           <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">Transit to Next Leg</label>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Nearest Transit Station</label>
+            <input
+              type="text"
+              value={station}
+              onChange={(e) => setStation(e.target.value)}
+              placeholder="e.g. Nankai Namba Station Direct"
+              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Transit to Next Stop</label>
             <input
               type="text"
               value={transitToNext}
