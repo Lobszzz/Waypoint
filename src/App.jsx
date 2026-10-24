@@ -246,6 +246,7 @@ export default function App() {
 
   const [showApiSettingsModal, setShowApiSettingsModal] = useState(false);
   const [showAddPlaceModal, setShowAddPlaceModal] = useState(false);
+  const [showEditPlaceModal, setShowEditPlaceModal] = useState(null);
   const [showManageTravelers, setShowManageTravelers] = useState(false);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -270,7 +271,7 @@ export default function App() {
   const currentCity = useMemo(() => cities[activeCityIndex] || cities[0] || DEFAULT_CITIES[0], [cities, activeCityIndex]);
   const nextCity = useMemo(() => cities[activeCityIndex + 1] || null, [cities, activeCityIndex]);
 
-  // Sync to Cloud
+  // Sync from Cloud
   const syncFromCloud = useCallback(async () => {
     if (!supabaseRef.current) return;
     try {
@@ -396,7 +397,7 @@ export default function App() {
 
   const jpyToMyr = (jpy) => ((Number(jpy || 0) / 100) * ratePer100Jpy).toFixed(2);
 
-  // SMART TWO-PHASE COUNTDOWN
+  // Two-Phase Countdown Timer
   const timers = useMemo(() => {
     if (!cities || cities.length === 0) {
       return { 
@@ -548,10 +549,17 @@ export default function App() {
     }
   }, [activeTravelerId, travelers]);
 
-  const getMapsUrl = (destTitle, destAddress) => {
-    const origin = encodeURIComponent(`${currentCity.hotelName}, ${currentCity.hotelAddress}`);
-    const dest = encodeURIComponent(`${destTitle} ${destAddress || ''}`);
-    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=transit`;
+  // Robust Google Maps Transit Link with fallback
+  const getMapsUrl = (destTitle, destAddress, destLat, destLng) => {
+    const originStr = currentCity.lat && currentCity.lng 
+      ? `${currentCity.lat},${currentCity.lng}` 
+      : `${currentCity.hotelName}, ${currentCity.name}, Japan`;
+
+    const destStr = destLat && destLng 
+      ? `${destLat},${destLng}` 
+      : `${destTitle}, ${destAddress || currentCity.name}, Japan`;
+
+    return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(originStr)}&destination=${encodeURIComponent(destStr)}&travelmode=transit`;
   };
 
   const handleResetKitty = async () => {
@@ -961,9 +969,11 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                         )}
                       </div>
                     </div>
+
+                    {/* ACTION BUTTONS: DIRECTIONS, EDIT, DELETE */}
                     <div className="flex items-center gap-2 self-end sm:self-center border-t sm:border-t-0 pt-2 sm:pt-0 border-stone-100 w-full sm:w-auto justify-end">
                       <a
-                        href={getMapsUrl(place.title, place.address)}
+                        href={getMapsUrl(place.title, place.address, place.lat, place.lng)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold flex items-center gap-1.5 transition"
@@ -972,8 +982,18 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                         <span>Directions</span>
                         <ExternalLink className="w-3 h-3 text-stone-400" />
                       </a>
+
+                      <button
+                        onClick={() => setShowEditPlaceModal(place)}
+                        className="p-1.5 text-stone-400 hover:text-amber-700 transition rounded-lg hover:bg-amber-50"
+                        title="Edit Spot"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+
                       <button
                         onClick={async () => {
+                          if (!window.confirm(`Delete "${place.title}" from checklist?`)) return;
                           const placeIdToDelete = place.id;
                           setPlaces(prev => prev.filter(p => p.id !== placeIdToDelete));
                           if (supabaseRef.current) {
@@ -985,7 +1005,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                             }
                           }
                         }}
-                        className="p-1.5 text-stone-400 hover:text-rose-600 transition"
+                        className="p-1.5 text-stone-400 hover:text-rose-600 transition rounded-lg hover:bg-rose-50"
                         title="Delete Spot"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1458,11 +1478,12 @@ Respond with practical transit tips, timing advice, food specialties, and concis
 
       {/* MODALS */}
       {showAddPlaceModal && (
-        <AddPlaceModal
+        <PlaceModal
           currentCity={currentCity}
           cities={cities}
+          isEdit={false}
           onClose={() => setShowAddPlaceModal(false)}
-          onAdd={async (newPlace) => {
+          onSave={async (newPlace) => {
             setPlaces(prev => [newPlace, ...prev]);
             setShowAddPlaceModal(false);
             if (supabaseRef.current) {
@@ -1478,9 +1499,45 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   distance_km: newPlace.distanceKm,
                   lat: newPlace.lat,
                   lng: newPlace.lng,
+                  address: newPlace.address,
                   notes: newPlace.notes,
                   visited: false
                 }]);
+              } catch {}
+            }
+          }}
+        />
+      )}
+
+      {showEditPlaceModal && (
+        <PlaceModal
+          currentCity={currentCity}
+          cities={cities}
+          place={showEditPlaceModal}
+          isEdit={true}
+          onClose={() => setShowEditPlaceModal(null)}
+          onSave={async (updatedPlace) => {
+            setPlaces(prev => prev.map(p => p.id === updatedPlace.id ? updatedPlace : p));
+            setShowEditPlaceModal(null);
+            if (supabaseRef.current) {
+              try {
+                await supabaseRef.current.from('trip_places').upsert({
+                  id: updatedPlace.id,
+                  city: updatedPlace.cityId,
+                  name: updatedPlace.title,
+                  jp_name: updatedPlace.titleJa,
+                  category: updatedPlace.category,
+                  time_of_day: updatedPlace.timeOfDay,
+                  est_cost: updatedPlace.costJPY,
+                  distance_km: updatedPlace.distanceKm,
+                  lat: updatedPlace.lat,
+                  lng: updatedPlace.lng,
+                  address: updatedPlace.address,
+                  notes: updatedPlace.notes,
+                  visited: updatedPlace.checkedIn,
+                  checked_in_by: updatedPlace.checkedInBy,
+                  unlocked_at: updatedPlace.unlockedAt
+                });
               } catch {}
             }
           }}
@@ -1623,22 +1680,21 @@ Respond with practical transit tips, timing advice, food specialties, and concis
 }
 
 // ----------------------------------------------------
-// AUTO-SUGGEST & DISTANCE CALCULATOR MODAL
+// PLACE MODAL (ADD & EDIT WITH AUTO-SUGGEST & DISTANCE)
 // ----------------------------------------------------
-function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
-  const [cityId, setCityId] = useState(currentCity.id);
-  const [title, setTitle] = useState('');
-  const [titleJa, setTitleJa] = useState('');
-  const [category, setCategory] = useState('Shrines & Temples');
-  const [timeOfDay, setTimeOfDay] = useState('Morning');
-  const [costJPY, setCostJPY] = useState('');
-  const [distanceKm, setDistanceKm] = useState('');
-  const [notes, setNotes] = useState('');
-  const [address, setAddress] = useState('');
-  const [lat, setLat] = useState(null);
-  const [lng, setLng] = useState(null);
+function PlaceModal({ currentCity, cities, place, isEdit, onClose, onSave }) {
+  const [cityId, setCityId] = useState(place?.cityId || currentCity.id);
+  const [title, setTitle] = useState(place?.title || '');
+  const [titleJa, setTitleJa] = useState(place?.titleJa || '');
+  const [category, setCategory] = useState(place?.category || 'Shrines & Temples');
+  const [timeOfDay, setTimeOfDay] = useState(place?.timeOfDay || 'Morning');
+  const [costJPY, setCostJPY] = useState(place?.costJPY ?? '');
+  const [distanceKm, setDistanceKm] = useState(place?.distanceKm ?? '');
+  const [notes, setNotes] = useState(place?.notes || '');
+  const [address, setAddress] = useState(place?.address || '');
+  const [lat, setLat] = useState(place?.lat || null);
+  const [lng, setLng] = useState(place?.lng || null);
 
-  // Suggestions state
   const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -1669,7 +1725,6 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
     return () => clearTimeout(timer);
   }, [title, cityId, cities, currentCity]);
 
-  // Handle suggestion tap
   const handleSelectSuggestion = (feature) => {
     const name = feature.properties.name || title;
     const pAddress = [
@@ -1687,7 +1742,6 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
     setLng(spotLng);
     setSuggestions([]);
 
-    // Auto-calculate distance from current hotel base
     const activeC = cities.find(c => c.id === cityId) || currentCity;
     if (activeC.lat && activeC.lng) {
       const dist = calculateDistance(activeC.lat, activeC.lng, spotLat, spotLng);
@@ -1698,8 +1752,8 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onAdd({
-      id: 'place-' + Date.now(),
+    onSave({
+      id: place?.id || 'place-' + Date.now(),
       cityId,
       title: title.trim(),
       titleJa: titleJa.trim() || title.trim(),
@@ -1709,9 +1763,9 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
       distanceKm: Number(distanceKm) || 0,
       lat,
       lng,
-      checkedIn: false,
-      checkedInBy: null,
-      unlockedAt: null,
+      checkedIn: place?.checkedIn || false,
+      checkedInBy: place?.checkedInBy || null,
+      unlockedAt: place?.unlockedAt || null,
       address: address.trim() || `${currentCity.name}, Japan`,
       notes: notes.trim()
     });
@@ -1721,7 +1775,9 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center">
-          <h3 className="font-bold text-sm text-slate-900">+ Add Place to Visit</h3>
+          <h3 className="font-bold text-sm text-slate-900">
+            {isEdit ? 'Edit Destination' : '+ Add Place to Visit'}
+          </h3>
           <button onClick={onClose} className="text-stone-400 hover:text-slate-900">
             <X className="w-4 h-4" />
           </button>
@@ -1740,7 +1796,6 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
             </select>
           </div>
 
-          {/* Place Name with Dropdown Autocomplete */}
           <div className="relative">
             <label className="text-[10px] text-stone-500 uppercase font-medium flex justify-between">
               <span>Place Name (Auto-Suggest)</span>
@@ -1752,11 +1807,10 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Osaka Castle, Dotonbori..."
-              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl"
+              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl font-bold"
               autoComplete="off"
             />
 
-            {/* Dropdown Suggestions */}
             {suggestions.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-2xl z-50 overflow-hidden divide-y divide-stone-100 max-h-48 overflow-y-auto">
                 {suggestions.map((item, idx) => (
@@ -1862,7 +1916,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Takoyaki stalls by the canal..."
+              placeholder="e.g. Visit early for photo spots..."
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl"
             />
           </div>
@@ -1879,7 +1933,234 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               type="submit"
               className="flex-1 py-2 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800"
             >
-              Save Place
+              {isEdit ? 'Save Changes' : 'Save Place'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------
+// EDIT / ADD CITY MODAL WITH HOTEL AUTO-SUGGEST
+// ----------------------------------------------------
+function EditCityModal({ city, isNew, onClose, onSave }) {
+  const [name, setName] = useState(city?.name || '');
+  const [nameJa, setNameJa] = useState(city?.nameJa || '');
+  const [hotelName, setHotelName] = useState(city?.hotelName || '');
+  const [hotelAddress, setHotelAddress] = useState(city?.hotelAddress || '');
+  const [station, setStation] = useState(city?.station || '');
+  const [startDate, setStartDate] = useState(city?.startDate || '2026-10-24T09:00');
+  const [endDate, setEndDate] = useState(city?.endDate || '2026-10-27T10:30');
+  const [transitToNext, setTransitToNext] = useState(city?.transitToNext || '');
+  const [lat, setLat] = useState(city?.lat || null);
+  const [lng, setLng] = useState(city?.lng || null);
+
+  const [hotelSuggestions, setHotelSuggestions] = useState([]);
+  const [isSearchingHotel, setIsSearchingHotel] = useState(false);
+
+  // Auto-suggest hotel as you type
+  useEffect(() => {
+    const q = hotelName.trim();
+    if (q.length < 2) {
+      setHotelSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingHotel(true);
+      try {
+        const queryTerm = `${q} hotel ${name || ''} Japan`;
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(queryTerm)}&limit=5`);
+        const data = await res.json();
+        if (data && data.features) {
+          setHotelSuggestions(data.features);
+        }
+      } catch (err) {
+        console.error("Hotel lookup error:", err);
+      } finally {
+        setIsSearchingHotel(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [hotelName, name]);
+
+  const handleSelectHotel = (feature) => {
+    const hName = feature.properties.name || hotelName;
+    const hAddress = [
+      feature.properties.street,
+      feature.properties.district,
+      feature.properties.city,
+      feature.properties.state
+    ].filter(Boolean).join(', ');
+
+    const [hLng, hLat] = feature.geometry.coordinates;
+
+    setHotelName(hName);
+    setHotelAddress(hAddress || `${hName}, ${name || 'Japan'}`);
+    setStation(feature.properties.city ? `Near ${feature.properties.city} Station` : 'Central Station Area');
+    setLat(hLat);
+    setLng(hLng);
+    setHotelSuggestions([]);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSave({
+      id: city?.id || name.toLowerCase().replace(/\s+/g, '-'),
+      name: name.trim(),
+      nameJa: nameJa.trim() || name.trim(),
+      hotelName: hotelName.trim() || 'Hotel',
+      hotelAddress: hotelAddress.trim() || `${hotelName.trim()}, ${name.trim()}, Japan`,
+      station: station.trim() || 'Central Station Gate',
+      startDate,
+      endDate,
+      transitToNext: transitToNext.trim(),
+      lat,
+      lng
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl p-5 max-w-sm w-full space-y-3 shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center">
+          <h3 className="font-bold text-sm text-slate-900">
+            {isNew ? '+ Add New City Leg' : `Edit Base • ${city?.name}`}
+          </h3>
+          <button onClick={onClose} className="text-stone-400 hover:text-slate-900">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-2.5 text-xs">
+          <div>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">City / Area Name</label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Osaka"
+              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-slate-900 font-bold"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Japanese Kanji / Kana</label>
+            <input
+              type="text"
+              value={nameJa}
+              onChange={(e) => setNameJa(e.target.value)}
+              placeholder="e.g. 大阪・道頓堀"
+              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-slate-900 font-serif"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-medium text-stone-500 uppercase">Arrival Date & Time</label>
+              <input
+                type="datetime-local"
+                required
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full mt-1 px-2 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-[11px]"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-stone-500 uppercase">Departure Date & Time</label>
+              <input
+                type="datetime-local"
+                required
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full mt-1 px-2 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-[11px]"
+              />
+            </div>
+          </div>
+
+          {/* Hotel Name with Auto-Suggest */}
+          <div className="relative">
+            <label className="text-[10px] font-medium text-stone-500 uppercase flex justify-between">
+              <span>Hotel / Lodging (Auto-Suggest)</span>
+              {isSearchingHotel && <span className="text-[10px] text-amber-600 animate-pulse font-bold">Searching...</span>}
+            </label>
+            <input
+              type="text"
+              value={hotelName}
+              onChange={(e) => setHotelName(e.target.value)}
+              placeholder="e.g. Dorsett, Swissôtel..."
+              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg font-bold"
+              autoComplete="off"
+            />
+
+            {hotelSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-2xl z-50 overflow-hidden divide-y divide-stone-100 max-h-48 overflow-y-auto">
+                {hotelSuggestions.map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSelectHotel(item)}
+                    className="w-full text-left p-2.5 hover:bg-amber-50/80 transition text-xs flex flex-col"
+                  >
+                    <span className="font-bold text-slate-900">{item.properties.name}</span>
+                    <span className="text-[10px] text-stone-500 truncate">
+                      {[item.properties.street, item.properties.city, item.properties.state].filter(Boolean).join(', ')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Hotel Full Address</label>
+            <input
+              type="text"
+              value={hotelAddress}
+              onChange={(e) => setHotelAddress(e.target.value)}
+              placeholder="Auto-filled from selection"
+              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Nearest Transit Station</label>
+            <input
+              type="text"
+              value={station}
+              onChange={(e) => setStation(e.target.value)}
+              placeholder="e.g. Namba Station Direct Gate"
+              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Transit to Next Stop</label>
+            <input
+              type="text"
+              value={transitToNext}
+              onChange={(e) => setTransitToNext(e.target.value)}
+              placeholder="e.g. Shinkansen Nozomi (2h 45m)"
+              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
+            />
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2 rounded-xl bg-stone-100 text-stone-600 font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 py-2 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800"
+            >
+              Save Base
             </button>
           </div>
         </form>
@@ -2048,152 +2329,6 @@ function ManageTravelersModal({ travelers, onClose, onAddTraveler, onDeleteTrave
         >
           Done
         </button>
-      </div>
-    </div>
-  );
-}
-
-function EditCityModal({ city, isNew, onClose, onSave }) {
-  const [name, setName] = useState(city?.name || '');
-  const [nameJa, setNameJa] = useState(city?.nameJa || '');
-  const [hotelName, setHotelName] = useState(city?.hotelName || '');
-  const [hotelAddress, setHotelAddress] = useState(city?.hotelAddress || '');
-  const [station, setStation] = useState(city?.station || '');
-  const [startDate, setStartDate] = useState(city?.startDate || '2026-10-24T09:00');
-  const [endDate, setEndDate] = useState(city?.endDate || '2026-10-27T10:30');
-  const [transitToNext, setTransitToNext] = useState(city?.transitToNext || '');
-  const [lat, setLat] = useState(city?.lat || null);
-  const [lng, setLng] = useState(city?.lng || null);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    onSave({
-      id: city?.id || name.toLowerCase().replace(/\s+/g, '-'),
-      name: name.trim(),
-      nameJa: nameJa.trim() || name.trim(),
-      hotelName: hotelName.trim() || 'Central Hotel',
-      hotelAddress: hotelAddress.trim() || 'Station Area, Japan',
-      station: station.trim() || 'JR Main Station',
-      startDate,
-      endDate,
-      transitToNext: transitToNext.trim(),
-      lat,
-      lng
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl p-5 max-w-sm w-full space-y-3 shadow-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center">
-          <h3 className="font-bold text-sm text-slate-900">
-            {isNew ? '+ Add New City Leg' : `Edit Leg • ${city?.name}`}
-          </h3>
-          <button onClick={onClose} className="text-stone-400 hover:text-slate-900">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-2.5 text-xs">
-          <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">City / Area Name</label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Osaka"
-              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-slate-900 font-bold"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">Japanese Kanji / Kana</label>
-            <input
-              type="text"
-              value={nameJa}
-              onChange={(e) => setNameJa(e.target.value)}
-              placeholder="e.g. 大阪・道頓堀"
-              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-slate-900 font-serif"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] font-medium text-stone-500 uppercase">Arrival Date & Time</label>
-              <input
-                type="datetime-local"
-                required
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full mt-1 px-2 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-[11px]"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-medium text-stone-500 uppercase">Departure Date & Time</label>
-              <input
-                type="datetime-local"
-                required
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full mt-1 px-2 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-[11px]"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">Hotel / Lodging Name</label>
-            <input
-              type="text"
-              value={hotelName}
-              onChange={(e) => setHotelName(e.target.value)}
-              placeholder="e.g. Swissôtel Nankai Osaka"
-              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">Hotel Full Address</label>
-            <input
-              type="text"
-              value={hotelAddress}
-              onChange={(e) => setHotelAddress(e.target.value)}
-              placeholder="e.g. 5-1-60 Namba, Chuo Ward, Osaka"
-              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">Nearest Transit Station</label>
-            <input
-              type="text"
-              value={station}
-              onChange={(e) => setStation(e.target.value)}
-              placeholder="e.g. Nankai Namba Station Direct"
-              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">Transit to Next Stop</label>
-            <input
-              type="text"
-              value={transitToNext}
-              onChange={(e) => setTransitToNext(e.target.value)}
-              placeholder="e.g. Shinkansen Nozomi (2h 45m)"
-              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
-            />
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2 rounded-xl bg-stone-100 text-stone-600 font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 py-2 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800"
-            >
-              Save Leg
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );
