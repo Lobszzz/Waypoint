@@ -41,15 +41,11 @@ function getSupabaseClient(rawUrl, key) {
         select: async () => {
           try {
             const res = await fetch(`${cleanUrl}/rest/v1/${tableName}?select=*`, {
-              headers: { 
-                apikey: key, 
-                Authorization: `Bearer ${key}` 
-              }
+              headers: { apikey: key, Authorization: `Bearer ${key}` }
             });
             const data = await res.json();
             return { data: Array.isArray(data) ? data : [], error: null };
           } catch (e) {
-            console.error(`Supabase select error on ${tableName}:`, e);
             return { data: null, error: e };
           }
         },
@@ -67,7 +63,6 @@ function getSupabaseClient(rawUrl, key) {
             });
             return { error: res.ok ? null : await res.text() };
           } catch (e) {
-            console.error(`Supabase insert error on ${tableName}:`, e);
             return { error: e };
           }
         },
@@ -85,7 +80,6 @@ function getSupabaseClient(rawUrl, key) {
             });
             return { error: res.ok ? null : await res.text() };
           } catch (e) {
-            console.error(`Supabase upsert error on ${tableName}:`, e);
             return { error: e };
           }
         },
@@ -94,17 +88,10 @@ function getSupabaseClient(rawUrl, key) {
             try {
               const res = await fetch(`${cleanUrl}/rest/v1/${tableName}?${col}=eq.${encodeURIComponent(val)}`, {
                 method: 'DELETE',
-                headers: { 
-                  apikey: key, 
-                  Authorization: `Bearer ${key}` 
-                }
+                headers: { apikey: key, Authorization: `Bearer ${key}` }
               });
-              if (!res.ok) {
-                console.error("Delete failed HTTP status:", res.status, await res.text());
-              }
               return { error: res.ok ? null : new Error('Delete failed') };
             } catch (e) {
-              console.error(`Supabase delete error on ${tableName}:`, e);
               return { error: e };
             }
           }
@@ -120,7 +107,6 @@ function getSupabaseClient(rawUrl, key) {
       removeChannel: () => {}
     };
   } catch (err) {
-    console.error("Error creating Supabase client:", err);
     return null;
   }
 }
@@ -174,11 +160,9 @@ const DEFAULT_CONTRIBUTIONS = [
 export default function App() {
   const [activeTab, setActiveTab] = useState('places');
   const [now, setNow] = useState(new Date());
-
   const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('waypoint_supabase_url') || 'https://rplthksiyiwlqjcjazto.supabase.co');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState(() => localStorage.getItem('waypoint_supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwbHRoa3NpeWl3bHFqY2phenRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3Njg1NDIsImV4cCI6MjEwODM0NDU0Mn0.CyVoRZ9yVQYZYykYANg94dLPBe_kxLeexh9kHEj8dsM');
   const [cloudSyncStatus, setCloudSyncStatus] = useState('syncing');
-
   const supabaseRef = useRef(null);
 
   useEffect(() => {
@@ -197,7 +181,6 @@ export default function App() {
     } catch { return DEFAULT_TRAVELERS; }
   });
   const [activeTravelerId, setActiveTravelerId] = useState(() => travelers[0]?.id || 't1');
-
   const [cities, setCities] = useState(() => {
     try {
       const s = localStorage.getItem('waypoint_cities');
@@ -227,12 +210,12 @@ export default function App() {
       return s ? JSON.parse(s) : DEFAULT_CONTRIBUTIONS;
     } catch { return DEFAULT_CONTRIBUTIONS; }
   });
-  const [ratePer100Jpy] = useState(3.12);
 
+  const [ratePer100Jpy] = useState(3.12);
   const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('waypoint_gemini_key') || '');
   const [selectedGeminiModel, setSelectedGeminiModel] = useState(() => localStorage.getItem('waypoint_gemini_model') || 'gemini-2.5-flash');
-  const [showApiSettingsModal, setShowApiSettingsModal] = useState(false);
 
+  const [showApiSettingsModal, setShowApiSettingsModal] = useState(false);
   const [showAddPlaceModal, setShowAddPlaceModal] = useState(false);
   const [showManageTravelers, setShowManageTravelers] = useState(false);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
@@ -264,7 +247,6 @@ export default function App() {
     if (!supabaseRef.current) return;
     try {
       setCloudSyncStatus('syncing');
-
       const { data: cloudPlaces, error: pErr } = await supabaseRef.current.from('trip_places').select('*');
       if (!pErr && Array.isArray(cloudPlaces)) {
         const mappedPlaces = cloudPlaces.map(cp => ({
@@ -284,7 +266,6 @@ export default function App() {
         setPlaces(mappedPlaces);
         localStorage.setItem('waypoint_places', JSON.stringify(mappedPlaces));
       }
-
       const { data: cloudExpenses, error: eErr } = await supabaseRef.current.from('trip_expenses').select('*');
       if (!eErr && Array.isArray(cloudExpenses)) {
         const mappedExpenses = cloudExpenses.map(ce => ({
@@ -299,7 +280,6 @@ export default function App() {
         setExpenses(mappedExpenses);
         localStorage.setItem('waypoint_expenses', JSON.stringify(mappedExpenses));
       }
-
       setCloudSyncStatus('connected');
     } catch {
       setCloudSyncStatus('offline');
@@ -308,7 +288,6 @@ export default function App() {
 
   useEffect(() => {
     syncFromCloud();
-
     let channel = null;
     if (supabaseRef.current) {
       try {
@@ -321,7 +300,6 @@ export default function App() {
           });
       } catch {}
     }
-
     return () => {
       if (channel && supabaseRef.current?.removeChannel) {
         supabaseRef.current.removeChannel(channel);
@@ -353,7 +331,6 @@ export default function App() {
   const timers = useMemo(() => {
     if (!cities || cities.length === 0) return { tripD: 0, tripH: 0, tripM: 0, tripS: 0, nextD: 0, nextH: 0, nextM: 0, nextS: 0, pctCity: 0, isFinal: false };
     const curTime = now.getTime();
-
     const tripEndTime = new Date(cities[cities.length - 1].endDate).getTime();
     const tripDiff = tripEndTime - curTime;
     const tripD = Math.max(0, Math.floor(tripDiff / (1000 * 60 * 60 * 24)));
@@ -392,7 +369,6 @@ export default function App() {
 
     const remaining = totalDeposited - kittySpent;
     const totalAllSpend = kittySpent + personalSpent;
-
     const ranked = Object.keys(catMap).map(k => ({
       name: k,
       amount: catMap[k],
@@ -468,7 +444,6 @@ export default function App() {
     setExpenses([]);
     localStorage.removeItem('waypoint_contribs');
     localStorage.removeItem('waypoint_expenses');
-
     if (supabaseRef.current) {
       try {
         await supabaseRef.current.from('trip_expenses').delete().neq('id', '0');
@@ -528,7 +503,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
       {/* HEADER */}
       <header className="sticky top-0 z-40 bg-[#FDFBF7]/95 backdrop-blur-md border-b border-stone-200/80 px-4 py-2.5">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
-          
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-sm shadow-sm">
               <Compass className="w-4 h-4 text-amber-400" />
@@ -570,7 +544,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
-
             <div className="flex bg-stone-100 p-0.5 rounded-lg border border-stone-200 text-xs">
               {travelers.map(t => (
                 <button
@@ -587,7 +560,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                 </button>
               ))}
             </div>
-
             <button
               onClick={() => setShowManageTravelers(true)}
               className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs border border-stone-200"
@@ -595,7 +567,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
             >
               <Users className="w-3.5 h-3.5" />
             </button>
-
             <button
               onClick={() => setShowApiSettingsModal(true)}
               className="p-1.5 rounded-lg border border-stone-200 bg-stone-100 hover:bg-stone-200 text-stone-600 text-xs"
@@ -604,7 +575,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
               <Sliders className="w-3.5 h-3.5" />
             </button>
           </div>
-
         </div>
 
         {/* TIMERS */}
@@ -619,7 +589,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                 {currentCity.transitToNext ? currentCity.transitToNext.split('(')[0] : 'Express'}
               </span>
             </div>
-            
             <div className="flex items-baseline justify-between mt-1">
               <span className="font-extrabold text-slate-900 text-sm font-mono">
                 {timers.isFinal ? 'Tour Concluded' : `${timers.nextD}d ${timers.nextH}h ${timers.nextM}m ${timers.nextS}s`}
@@ -628,7 +597,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                 {timers.pctCity}% spent
               </span>
             </div>
-
             <div className="w-full bg-amber-200/60 rounded-full h-1 mt-1 overflow-hidden">
               <div 
                 className="bg-amber-600 h-1 rounded-full transition-all duration-1000"
@@ -681,11 +649,8 @@ Respond with practical transit tips, timing advice, food specialties, and concis
 
       {/* MAIN VIEWPORT */}
       <main className="flex-1 max-w-4xl w-full mx-auto p-4 space-y-4">
-        
-        {/* TAB 1: PLACES */}
         {activeTab === 'places' && (
           <div className="space-y-4">
-            
             <div className="bg-white rounded-3xl border border-stone-200/90 p-5 shadow-xs space-y-3">
               <div className="flex items-start justify-between flex-wrap gap-2">
                 <div>
@@ -704,7 +669,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                     Base Lodging: <span className="font-bold text-slate-800">{currentCity.hotelName}</span>
                   </p>
                 </div>
-
                 <button
                   onClick={() => setShowAddPlaceModal(true)}
                   className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition"
@@ -720,7 +684,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   const isCur = c.id === activeCityId;
                   const cPlaces = places.filter(p => p.cityId === c.id);
                   const cDone = cPlaces.filter(p => p.checkedIn).length;
-
                   return (
                     <button
                       key={c.id}
@@ -760,7 +723,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                     </button>
                   ))}
                 </div>
-
                 <div className="text-xs text-stone-500 font-medium">
                   {completedCount === activeCityPlaces.length && activeCityPlaces.length > 0 ? (
                     <span className="text-emerald-600 font-bold flex items-center gap-1">
@@ -801,7 +763,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                           <Circle className="w-6 h-6 text-stone-300 hover:text-stone-400" />
                         )}
                       </button>
-
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-700">
@@ -818,7 +779,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                             </span>
                           )}
                         </div>
-
                         <div className="flex items-baseline gap-2">
                           <h3 className={`font-black text-base ${place.checkedIn ? 'text-emerald-950 line-through opacity-85' : 'text-slate-900'}`}>
                             {place.title}
@@ -829,13 +789,11 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                             </span>
                           )}
                         </div>
-
                         {place.notes && (
                           <p className="text-xs text-stone-600 italic">
                             "{place.notes}"
                           </p>
                         )}
-
                         {place.checkedIn && (
                           <p className="text-[10px] font-bold text-emerald-700 pt-0.5">
                             ✓ Visited by {place.checkedInBy} on {place.unlockedAt}
@@ -843,7 +801,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                         )}
                       </div>
                     </div>
-
                     <div className="flex items-center gap-2 self-end sm:self-center border-t sm:border-t-0 pt-2 sm:pt-0 border-stone-100 w-full sm:w-auto justify-end">
                       <a
                         href={getMapsUrl(place.title, place.address)}
@@ -855,32 +812,39 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                         <span>Directions</span>
                         <ExternalLink className="w-3 h-3 text-stone-400" />
                       </a>
-
                       <button
-                        onClick={() => {
-                          setPlaces(prev => prev.filter(p => p.id !== place.id));
+                        onClick={async () => {
+                          const placeIdToDelete = place.id;
+                          setPlaces(prev => prev.filter(p => p.id !== placeIdToDelete));
                           if (supabaseRef.current) {
-                            supabaseRef.current.from('trip_places').delete().eq('id', place.id).catch(() => {});
+                            try {
+                              const res = await supabaseRef.current.from('trip_places').delete().eq('id', placeIdToDelete);
+                              if (res && res.error) {
+                                console.error("Cloud delete error:", res.error);
+                                syncFromCloud();
+                              }
+                            } catch (err) {
+                              console.error("Delete call failed:", err);
+                              syncFromCloud();
+                            }
                           }
                         }}
-                        className="p-1.5 text-stone-400 hover:text-rose-600"
+                        className="p-1.5 text-stone-400 hover:text-rose-600 transition"
+                        title="Delete Spot"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-
                   </div>
                 ))
               )}
             </div>
-
           </div>
         )}
 
         {/* TAB 2: TIMELINE */}
         {activeTab === 'timeline' && (
           <div className="space-y-4">
-            
             <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-xs">
               <div className="flex items-start justify-between">
                 <div>
@@ -893,7 +857,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   <h2 className="text-lg font-bold text-slate-900 mt-1">{currentCity.hotelName}</h2>
                   <p className="text-xs text-stone-500 font-serif mt-0.5">{currentCity.hotelAddress}</p>
                 </div>
-
                 <button
                   onClick={() => setShowEditCityModal(currentCity)}
                   className="px-2.5 py-1.5 rounded-lg border border-stone-200 text-stone-700 text-xs font-medium hover:bg-stone-50 flex items-center gap-1"
@@ -902,7 +865,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   Edit Leg
                 </button>
               </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 pt-3 border-t border-stone-100 text-xs">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-stone-100 flex items-center justify-center text-stone-600">
@@ -913,7 +875,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                     <p className="text-slate-800 font-semibold">{currentCity.station}</p>
                   </div>
                 </div>
-
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-700">
                     <Clock className="w-4 h-4" />
@@ -934,7 +895,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   <h3 className="text-sm font-bold text-slate-900">Trip Route</h3>
                   <p className="text-xs text-stone-500">Hotels, transfer schedules, and destinations</p>
                 </div>
-
                 <button
                   onClick={() => setShowNewCityModal(true)}
                   className="px-3 py-1.5 rounded-lg bg-slate-900 text-stone-50 text-xs font-medium hover:bg-slate-800 flex items-center gap-1 shadow-xs"
@@ -943,12 +903,10 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   Add City Leg
                 </button>
               </div>
-
               <div className="space-y-2.5 pt-1">
                 {cities.map((city, idx) => {
                   const isCurrent = city.id === activeCityId;
                   const isOrigin = idx === 0;
-
                   return (
                     <div
                       key={city.id}
@@ -978,7 +936,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                             <p className="text-xs text-stone-500 font-serif">{city.nameJa}</p>
                           </div>
                         </div>
-
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => setShowEditCityModal(city)}
@@ -996,7 +953,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                           )}
                         </div>
                       </div>
-
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-2 border-t border-stone-100 text-xs text-stone-600">
                         <div>
                           <span className="text-[10px] text-stone-400 block uppercase font-medium">Dates</span>
@@ -1009,7 +965,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                           <span className="truncate block font-medium text-slate-800">{city.hotelName}</span>
                         </div>
                       </div>
-
                       {city.transitToNext && (
                         <div className="mt-2.5 pt-2 border-t border-dashed border-stone-200 flex items-center justify-between text-xs text-stone-500">
                           <span className="flex items-center gap-1 text-[11px]">
@@ -1031,14 +986,12 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                 })}
               </div>
             </div>
-
           </div>
         )}
 
         {/* TAB 3: KITTY */}
         {activeTab === 'kitty' && (
           <div className="space-y-4">
-            
             <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-xs">
               <div className="flex items-start justify-between">
                 <div>
@@ -1052,7 +1005,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                     Shared Pool for {travelers.length} Companions
                   </h3>
                 </div>
-
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleResetKitty}
@@ -1061,7 +1013,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                     <RefreshCw className="w-3.5 h-3.5" />
                     Reset Pool
                   </button>
-
                   <button
                     onClick={() => setShowTopUpModal(true)}
                     className="px-3.5 py-2 rounded-xl bg-slate-900 text-stone-50 text-xs font-semibold hover:bg-slate-800 shadow-xs flex items-center gap-1.5"
@@ -1071,7 +1022,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   </button>
                 </div>
               </div>
-
               <div className="mt-4">
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-extrabold tracking-tight text-slate-900">
@@ -1082,13 +1032,11 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   </span>
                 </div>
               </div>
-
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-4 pt-3.5 border-t border-stone-100 text-xs">
                 {travelers.map(t => {
                   const travelerPaid = contributions
                     .filter(c => c.travelerId === t.id)
                     .reduce((a, b) => a + Number(b.amountJPY || 0), 0);
-
                   return (
                     <div key={t.id} className="p-3 bg-stone-50 rounded-xl border border-stone-200/60">
                       <span className="text-[10px] text-stone-400 font-medium block uppercase truncate">
@@ -1112,7 +1060,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   </span>
                   <h3 className="text-base font-bold text-slate-900 mt-1.5">Spending Breakdown</h3>
                 </div>
-
                 <div className="text-right">
                   <span className="text-[10px] text-stone-400 uppercase font-medium block">Total Group Spend</span>
                   <span className="text-base font-extrabold text-slate-900">
@@ -1120,7 +1067,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   </span>
                 </div>
               </div>
-
               {kittyStats.topCat && (
                 <div className="p-3 bg-stone-50 rounded-xl border border-stone-200/70 flex items-center justify-between text-xs mt-2">
                   <div className="flex items-center gap-2">
@@ -1135,7 +1081,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   </span>
                 </div>
               )}
-
               <div className="space-y-2.5 pt-2">
                 {kittyStats.ranked.map((cat) => (
                   <div key={cat.name} className="space-y-1">
@@ -1160,7 +1105,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   <h4 className="text-sm font-bold text-slate-900">Expense Log</h4>
                   <p className="text-xs text-stone-500">Tracked in real time</p>
                 </div>
-
                 <button
                   onClick={() => setShowExpenseModal(true)}
                   className="px-3 py-1.5 rounded-lg border border-stone-200 hover:bg-stone-50 text-xs font-semibold text-slate-900 flex items-center gap-1.5"
@@ -1169,7 +1113,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   Log Expense
                 </button>
               </div>
-
               <div className="space-y-2 pt-1">
                 {expenses.length === 0 ? (
                   <div className="text-center py-6 text-stone-400 text-xs italic">
@@ -1194,17 +1137,26 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                         </div>
                         <p className="font-semibold text-slate-900 mt-1">{e.title}</p>
                       </div>
-
                       <div className="flex items-center gap-2">
                         <div className="text-right">
                           <p className="font-bold text-slate-900">¥{Number(e.amountJPY).toLocaleString()}</p>
                           <p className="text-[10px] text-stone-400">RM {jpyToMyr(e.amountJPY)}</p>
                         </div>
                         <button
-                          onClick={() => {
-                            setExpenses(prev => prev.filter(x => x.id !== e.id));
+                          onClick={async () => {
+                            const expenseIdToDelete = e.id;
+                            setExpenses(prev => prev.filter(x => x.id !== expenseIdToDelete));
                             if (supabaseRef.current) {
-                              supabaseRef.current.from('trip_expenses').delete().eq('id', e.id).catch(() => {});
+                              try {
+                                const res = await supabaseRef.current.from('trip_expenses').delete().eq('id', expenseIdToDelete);
+                                if (res && res.error) {
+                                  console.error("Expense delete error:", res.error);
+                                  syncFromCloud();
+                                }
+                              } catch (err) {
+                                console.error("Expense delete error:", err);
+                                syncFromCloud();
+                              }
                             }
                           }}
                           className="text-stone-400 hover:text-rose-600 p-1"
@@ -1217,7 +1169,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                 )}
               </div>
             </div>
-
           </div>
         )}
 
@@ -1234,7 +1185,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   <p className="text-[10px] text-stone-500">{currentCity.name} Leg Assistant</p>
                 </div>
               </div>
-
               <button
                 onClick={() => setShowApiSettingsModal(true)}
                 className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-100 text-stone-600 text-xs"
@@ -1299,13 +1249,11 @@ Respond with practical transit tips, timing advice, food specialties, and concis
             </form>
           </div>
         )}
-
       </main>
 
       {/* BOTTOM NAV */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200/80 py-2 px-2 shadow-sm">
         <div className="max-w-md mx-auto grid grid-cols-4 gap-1 text-[10px]">
-          
           <button
             onClick={() => setActiveTab('places')}
             className={`flex flex-col items-center justify-center py-1 rounded-xl transition ${
@@ -1315,7 +1263,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
             <CheckCircle2 className="w-4 h-4 mb-0.5" />
             <span>Places</span>
           </button>
-
           <button
             onClick={() => setActiveTab('timeline')}
             className={`flex flex-col items-center justify-center py-1 rounded-xl transition ${
@@ -1325,7 +1272,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
             <Calendar className="w-4 h-4 mb-0.5" />
             <span>Timeline</span>
           </button>
-
           <button
             onClick={() => setActiveTab('kitty')}
             className={`flex flex-col items-center justify-center py-1 rounded-xl transition ${
@@ -1335,7 +1281,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
             <PieChart className="w-4 h-4 mb-0.5" />
             <span>Kitty</span>
           </button>
-
           <button
             onClick={() => setActiveTab('ai')}
             className={`flex flex-col items-center justify-center py-1 rounded-xl transition ${
@@ -1345,7 +1290,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
             <Bot className="w-4 h-4 mb-0.5" />
             <span>AI Chat</span>
           </button>
-
         </div>
       </nav>
 
@@ -1358,7 +1302,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
           onAdd={async (newPlace) => {
             setPlaces(prev => [newPlace, ...prev]);
             setShowAddPlaceModal(false);
-
             if (supabaseRef.current) {
               try {
                 await supabaseRef.current.from('trip_places').insert([{
@@ -1444,7 +1387,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
           onAdd={async (exp) => {
             setExpenses(prev => [exp, ...prev]);
             setShowExpenseModal(false);
-
             if (supabaseRef.current) {
               try {
                 await supabaseRef.current.from('trip_expenses').insert([{
@@ -1461,7 +1403,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
           }}
         />
       )}
-
     </div>
   );
 }
@@ -1479,7 +1420,6 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
-
     onAdd({
       id: 'place-' + Date.now(),
       cityId,
@@ -1505,7 +1445,6 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
             <X className="w-4 h-4" />
           </button>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-2.5 text-xs">
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">City Leg</label>
@@ -1519,7 +1458,6 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               ))}
             </select>
           </div>
-
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Place Name (English)</label>
             <input
@@ -1531,7 +1469,6 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl"
             />
           </div>
-
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Japanese Kanji / Kana (Optional)</label>
             <input
@@ -1542,7 +1479,6 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl font-serif"
             />
           </div>
-
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-stone-500 uppercase font-medium">Category</label>
@@ -1574,7 +1510,6 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               </select>
             </div>
           </div>
-
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Estimated Cost (¥ JPY)</label>
             <input
@@ -1586,7 +1521,6 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl font-mono"
             />
           </div>
-
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Address / Station Exit</label>
             <input
@@ -1597,7 +1531,6 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl"
             />
           </div>
-
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Notes & Tips</label>
             <textarea
@@ -1608,7 +1541,6 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl"
             />
           </div>
-
           <div className="flex gap-2 pt-2">
             <button
               type="button"
@@ -1650,7 +1582,6 @@ function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, on
             <X className="w-4 h-4" />
           </button>
         </div>
-
         <form onSubmit={handleSave} className="space-y-3 text-xs">
           <div className="border border-stone-200 rounded-2xl p-3 bg-stone-50/50 space-y-2">
             <span className="text-[10px] font-bold text-slate-900 uppercase block">Gemini AI</span>
@@ -1664,7 +1595,6 @@ function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, on
                 <option value="gemini-2.5-pro">gemini-2.5-pro (Detailed)</option>
               </select>
             </div>
-
             <div>
               <label className="text-[9px] font-bold text-stone-500 uppercase block mb-0.5">API Key</label>
               <input
@@ -1689,7 +1619,6 @@ function ApiSettingsModal({ apiKey, model, supabaseUrl, supabaseKey, onClose, on
                 className="w-full px-2.5 py-1.5 bg-white border border-stone-200 rounded-xl font-mono text-[11px]"
               />
             </div>
-
             <div>
               <label className="text-[9px] font-bold text-stone-500 uppercase block mb-0.5">Anon Key</label>
               <input
@@ -1759,7 +1688,6 @@ function ManageTravelersModal({ travelers, onClose, onUpdate }) {
             <X className="w-4 h-4" />
           </button>
         </div>
-
         <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
           {list.map(t => (
             <div key={t.id} className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 flex items-center justify-between gap-2">
@@ -1776,7 +1704,6 @@ function ManageTravelersModal({ travelers, onClose, onUpdate }) {
             </div>
           ))}
         </div>
-
         <form onSubmit={handleAdd} className="pt-2 border-t border-stone-100 flex gap-1.5">
           <input
             type="text"
@@ -1799,7 +1726,6 @@ function ManageTravelersModal({ travelers, onClose, onUpdate }) {
             + Add
           </button>
         </form>
-
         <button
           onClick={onClose}
           className="w-full py-2 bg-stone-100 hover:bg-stone-200 text-slate-800 rounded-xl text-xs font-semibold"
@@ -1848,7 +1774,6 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
             <X className="w-4 h-4" />
           </button>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-2.5 text-xs">
           <div>
             <label className="text-[10px] font-medium text-stone-500 uppercase">City Name</label>
@@ -1861,7 +1786,6 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-slate-900"
             />
           </div>
-
           <div>
             <label className="text-[10px] font-medium text-stone-500 uppercase">Japanese Kanji / Kana</label>
             <input
@@ -1872,7 +1796,6 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-slate-900 font-serif"
             />
           </div>
-
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] font-medium text-stone-500 uppercase">Arrival</label>
@@ -1895,7 +1818,6 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
               />
             </div>
           </div>
-
           <div>
             <label className="text-[10px] font-medium text-stone-500 uppercase">Hotel</label>
             <input
@@ -1906,7 +1828,6 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
             />
           </div>
-
           <div>
             <label className="text-[10px] font-medium text-stone-500 uppercase">Address / Station Exit</label>
             <input
@@ -1917,7 +1838,6 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
             />
           </div>
-
           <div>
             <label className="text-[10px] font-medium text-stone-500 uppercase">Transit to Next Leg</label>
             <input
@@ -1928,7 +1848,6 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
             />
           </div>
-
           <div className="flex gap-2 pt-2">
             <button
               type="button"
@@ -1958,10 +1877,8 @@ function TopUpModal({ travelers, onClose, onAdd }) {
     e.preventDefault();
     const val = Number(amt);
     if (!val || val <= 0) return;
-
     const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const items = [];
-
     if (mode === 'all') {
       travelers.forEach(t => {
         items.push({
@@ -1981,7 +1898,6 @@ function TopUpModal({ travelers, onClose, onAdd }) {
         note: `Single top-up ¥${val.toLocaleString()}`
       });
     }
-
     onAdd(items);
   };
 
@@ -1994,7 +1910,6 @@ function TopUpModal({ travelers, onClose, onAdd }) {
             <X className="w-4 h-4" />
           </button>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-3 text-xs">
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Contributor</label>
@@ -2009,7 +1924,6 @@ function TopUpModal({ travelers, onClose, onAdd }) {
               ))}
             </select>
           </div>
-
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Quick Presets (¥ JPY)</label>
             <div className="grid grid-cols-4 gap-1.5 mt-1">
@@ -2026,7 +1940,6 @@ function TopUpModal({ travelers, onClose, onAdd }) {
                 </button>
               ))}
             </div>
-
             <input
               type="number"
               required
@@ -2037,11 +1950,9 @@ function TopUpModal({ travelers, onClose, onAdd }) {
               className="w-full mt-2.5 px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-slate-900 font-bold"
             />
           </div>
-
           <p className="text-xs text-emerald-800 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200/60">
             Total added to Kitty: ¥{(mode === 'all' ? amt * travelers.length : amt).toLocaleString()}
           </p>
-
           <div className="flex gap-2 pt-2">
             <button
               type="button"
@@ -2073,7 +1984,6 @@ function AddExpenseModal({ travelers, activeTravelerId, onClose, onAdd }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim() || !amountJPY) return;
-
     onAdd({
       id: 'e-' + Date.now(),
       title,
@@ -2094,7 +2004,6 @@ function AddExpenseModal({ travelers, activeTravelerId, onClose, onAdd }) {
             <X className="w-4 h-4" />
           </button>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-3 text-xs">
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Payment Source</label>
@@ -2119,7 +2028,6 @@ function AddExpenseModal({ travelers, activeTravelerId, onClose, onAdd }) {
               </button>
             </div>
           </div>
-
           {paymentMethod === 'personal' && (
             <div>
               <label className="text-[10px] text-stone-500 uppercase font-medium">Paid By Traveler</label>
@@ -2134,7 +2042,6 @@ function AddExpenseModal({ travelers, activeTravelerId, onClose, onAdd }) {
               </select>
             </div>
           )}
-
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Expense Item</label>
             <input
@@ -2146,7 +2053,6 @@ function AddExpenseModal({ travelers, activeTravelerId, onClose, onAdd }) {
               className="w-full mt-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
             />
           </div>
-
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Amount (¥ JPY)</label>
             <input
@@ -2159,7 +2065,6 @@ function AddExpenseModal({ travelers, activeTravelerId, onClose, onAdd }) {
               className="w-full mt-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-bold"
             />
           </div>
-
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Category</label>
             <select
@@ -2176,7 +2081,6 @@ function AddExpenseModal({ travelers, activeTravelerId, onClose, onAdd }) {
               <option>Misc</option>
             </select>
           </div>
-
           <div className="flex gap-2 pt-2">
             <button
               type="button"
