@@ -25,18 +25,17 @@ import {
   Cloud,
   CloudOff
 } from 'lucide-react';
+
 function getSupabaseClient(rawUrl, key) {
   if (!rawUrl || !key) return null;
   const cleanUrl = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
 
   try {
-    // Check if official Supabase JS SDK is available on window
-    const supabaseGlobal = window.supabase;
+    const supabaseGlobal = typeof window !== 'undefined' ? window.supabase : null;
     if (supabaseGlobal && typeof supabaseGlobal.createClient === 'function') {
       return supabaseGlobal.createClient(cleanUrl, key);
     }
 
-    // Direct REST Fallback (with corrected template literals)
     return {
       from: (tableName) => ({
         select: async () => {
@@ -122,16 +121,6 @@ function getSupabaseClient(rawUrl, key) {
     };
   } catch (err) {
     console.error("Error creating Supabase client:", err);
-    return null;
-  }
-}
-      channel: () => ({
-        on: function() { return this; },
-        subscribe: function() { return this; }
-      }),
-      removeChannel: () => {}
-    };
-  } catch (err) {
     return null;
   }
 }
