@@ -15,17 +15,16 @@ import {
   Sun, 
   MapPin, 
   RefreshCw, 
-  Compass, 
-  CheckCircle2, 
-  Circle, 
-  Settings, 
-  ExternalLink, 
-  Sliders, 
-  Cloud, 
-  CloudOff, 
-  ArrowUpDown, 
-  Navigation,
-  Plane
+  Compass,
+  CheckCircle2,
+  Circle,
+  Settings,
+  ExternalLink,
+  Sliders,
+  Cloud,
+  CloudOff,
+  ArrowUpDown,
+  Navigation
 } from 'lucide-react';
 
 function getSupabaseClient(rawUrl, key) {
@@ -243,7 +242,6 @@ export default function App() {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const chatEndRef = useRef(null);
 
-  // Sync to Cloud
   const syncFromCloud = useCallback(async () => {
     if (!supabaseRef.current) return;
     try {
@@ -295,7 +293,7 @@ export default function App() {
       // 4. Cities
       const { data: cloudCities, error: cErr } = await supabaseRef.current.from('trip_cities').select('*');
       if (!cErr && Array.isArray(cloudCities) && cloudCities.length > 0) {
-        const sorted = [...cloudCities].sort((a, b) => new Date(a.start_date || a.startDate) - new Date(b.start_date || b.startDate));
+        const sorted = cloudCities.sort((a, b) => new Date(a.start_date || a.startDate) - new Date(b.start_date || b.startDate));
         const mappedCities = sorted.map(cc => ({
           id: cc.id,
           name: cc.name,
@@ -374,94 +372,67 @@ export default function App() {
   const currentCity = useMemo(() => cities[activeCityIndex] || cities[0] || DEFAULT_CITIES[0], [cities, activeCityIndex]);
   const nextCity = useMemo(() => cities[activeCityIndex + 1] || null, [cities, activeCityIndex]);
 
-  // DEDICATED TRIP TIMERS & CITY LEG TIMERS
-  const tripMetrics = useMemo(() => {
+  // SMART TWO-PHASE COUNTDOWN
+  const timers = useMemo(() => {
     if (!cities || cities.length === 0) {
-      return {
-        totalTripDays: 0,
-        preTrip: false,
-        flightCountdown: '0d 0h 0m 0s',
-        daysLeftInCountry: '0d 0h 0m 0s',
-        tripStartDateStr: '',
-        tripEndDateStr: '',
-        concluded: true
+      return { 
+        isPreTrip: false, 
+        mainTitle: 'Tour Concluded', 
+        mainTime: '0d 0h 0m 0s',
+        cityTime: '0d 0h 0m 0s',
+        pctCity: 100, 
+        isFinal: true 
       };
     }
 
-    const cur = now.getTime();
-    const tripStart = new Date(cities[0].startDate).getTime();
-    const tripEnd = new Date(cities[cities.length - 1].endDate).getTime();
+    const curTime = now.getTime();
+    const tripStartTime = new Date(cities[0].startDate).getTime();
+    const tripEndTime = new Date(cities[cities.length - 1].endDate).getTime();
 
-    // Total Duration of whole trip in days
-    const totalDays = Math.max(1, Math.ceil((tripEnd - tripStart) / (1000 * 60 * 60 * 24)));
+    const isPreTrip = curTime < tripStartTime;
+    let mainTitle = '';
+    let mainDiff = 0;
 
-    const preTrip = cur < tripStart;
-    const concluded = cur > tripEnd;
-
-    // Countdown till flight
-    const toFlightDiff = Math.max(0, tripStart - cur);
-    const fD = Math.floor(toFlightDiff / (1000 * 60 * 60 * 24));
-    const fH = Math.floor((toFlightDiff / (1000 * 60 * 60)) % 24);
-    const fM = Math.floor((toFlightDiff / (1000 * 60)) % 60);
-    const fS = Math.floor((toFlightDiff / 1000) % 60);
-    const flightCountdown = `${fD}d ${fH}h ${fM}m ${fS}s`;
-
-    // Countdown remaining days in country
-    const remainDiff = Math.max(0, tripEnd - cur);
-    const rD = Math.floor(remainDiff / (1000 * 60 * 60 * 24));
-    const rH = Math.floor((remainDiff / (1000 * 60 * 60)) % 24);
-    const rM = Math.floor((remainDiff / (1000 * 60)) % 60);
-    const rS = Math.floor((remainDiff / 1000) % 60);
-    const daysLeftInCountry = `${rD}d ${rH}h ${rM}m ${rS}s`;
-
-    const startFmt = new Date(cities[0].startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const endFmt = new Date(cities[cities.length - 1].endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-    return {
-      totalTripDays: totalDays,
-      preTrip,
-      concluded,
-      flightCountdown,
-      daysLeftInCountry,
-      tripStartDateStr: startFmt,
-      tripEndDateStr: endFmt
-    };
-  }, [cities, now]);
-
-  const cityLegMetrics = useMemo(() => {
-    const cur = now.getTime();
-    const curStart = new Date(currentCity.startDate).getTime();
-    const curEnd = new Date(currentCity.endDate).getTime();
-
-    const notStarted = cur < curStart;
-    const isCompleted = cur > curEnd;
-
-    let legCountdown = '';
-    if (notStarted) {
-      const d = Math.max(0, curStart - cur);
-      legCountdown = `${Math.floor(d / (1000 * 60 * 60 * 24))}d ${Math.floor((d / (1000 * 60 * 60)) % 24)}h till arrival`;
-    } else if (!isCompleted) {
-      const d = Math.max(0, curEnd - cur);
-      const days = Math.floor(d / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((d / (1000 * 60 * 60)) % 24);
-      const mins = Math.floor((d / (1000 * 60)) % 60);
-      const secs = Math.floor((d / 1000) % 60);
-      legCountdown = `${days}d ${hours}h ${mins}m ${secs}s`;
+    if (isPreTrip) {
+      mainTitle = '⏳ Countdown to Japan';
+      mainDiff = tripStartTime - curTime;
+    } else if (curTime <= tripEndTime) {
+      mainTitle = '🗾 Days Left in Japan';
+      mainDiff = tripEndTime - curTime;
     } else {
-      legCountdown = 'Completed';
+      mainTitle = '🎌 Tour Concluded';
+      mainDiff = 0;
     }
 
+    const mD = Math.max(0, Math.floor(mainDiff / (1000 * 60 * 60 * 24)));
+    const mH = Math.max(0, Math.floor((mainDiff / (1000 * 60 * 60)) % 24));
+    const mM = Math.max(0, Math.floor((mainDiff / (1000 * 60)) % 60));
+    const mS = Math.max(0, Math.floor((mainDiff / 1000) % 60));
+    const mainTime = `${mD}d ${mH}h ${mM}m ${mS}s`;
+
+    const curStart = new Date(currentCity.startDate).getTime();
+    const curEnd = new Date(currentCity.endDate).getTime();
+    const nextDiff = curEnd - curTime;
+
+    const nD = Math.max(0, Math.floor(nextDiff / (1000 * 60 * 60 * 24)));
+    const nH = Math.max(0, Math.floor((nextDiff / (1000 * 60 * 60)) % 24));
+    const nM = Math.max(0, Math.floor((nextDiff / (1000 * 60)) % 60));
+    const nS = Math.max(0, Math.floor((nextDiff / 1000) % 60));
+    const cityTime = `${nD}d ${nH}h ${nM}m ${nS}s`;
+
     const totalSpan = Math.max(1, curEnd - curStart);
-    const elapsed = Math.max(0, Math.min(totalSpan, cur - curStart));
+    const elapsed = Math.max(0, Math.min(totalSpan, curTime - curStart));
     const pctCity = Math.min(100, Math.max(0, Math.round((elapsed / totalSpan) * 100)));
 
     return {
-      legCountdown,
+      isPreTrip,
+      mainTitle,
+      mainTime,
+      cityTime,
       pctCity,
-      notStarted,
-      isCompleted
+      isFinal: !nextCity
     };
-  }, [currentCity, now]);
+  }, [cities, currentCity, nextCity, now]);
 
   const kittyStats = useMemo(() => {
     const totalDeposited = contributions.reduce((s, c) => s + Number(c.amountJPY || 0), 0);
@@ -695,102 +666,76 @@ Respond with practical transit tips, timing advice, food specialties, and concis
           </div>
         </div>
 
-        {/* 3 DEDICATED CARDS: 1. OVERALL COUNTRY TRIP | 2. CITY LEG | 3. KITTY */}
+        {/* DUAL-MODE COUNTDOWN TIMERS */}
         <div className="max-w-4xl mx-auto mt-2 pt-2 border-t border-stone-100 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-          
-          {/* CARD 1: DEDICATED TRIP & COUNTRY MASTER CARD */}
-          <div className="bg-gradient-to-br from-indigo-50 to-blue-50/70 border border-indigo-200/90 rounded-2xl p-3 flex flex-col justify-between shadow-xs">
+          <div className={`${timers.isPreTrip ? 'bg-indigo-50/90 border-indigo-200/80 text-indigo-950' : 'bg-stone-50 border-stone-200/90 text-stone-800'} border rounded-xl px-3 py-2 flex flex-col justify-between`}>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-black text-indigo-950 flex items-center gap-1.5 tracking-wide">
-                <Plane className="w-3.5 h-3.5 text-indigo-600" />
-                Japan Expedition
+              <span className={`text-[10px] uppercase font-bold flex items-center gap-1 ${timers.isPreTrip ? 'text-indigo-800' : 'text-stone-500'}`}>
+                <Clock className="w-3.5 h-3.5" />
+                {timers.mainTitle}
               </span>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-200/60 text-indigo-900">
-                {tripMetrics.totalTripDays} Days Total
+              <span className="text-[10px] font-medium text-stone-400">
+                {cities[0] ? new Date(cities[0].startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
               </span>
             </div>
-
-            <div className="mt-2 space-y-1">
-              <div className="flex items-baseline justify-between">
-                <span className="text-[10px] font-bold text-indigo-800">
-                  {tripMetrics.preTrip ? '⏳ Countdown to Flight:' : (tripMetrics.concluded ? '🎌 Expedition Ended:' : '🗾 Time Left in Japan:')}
-                </span>
-                <button
-                  onClick={() => setShowEditCityModal(cities[0])}
-                  className="text-[10px] text-indigo-600 hover:text-indigo-950 underline font-medium"
-                >
-                  Edit Dates
-                </button>
-              </div>
-              <div className="font-extrabold text-slate-900 text-base font-mono tracking-tight">
-                {tripMetrics.preTrip ? tripMetrics.flightCountdown : (tripMetrics.concluded ? 'Tour Concluded' : tripMetrics.daysLeftInCountry)}
-              </div>
-            </div>
-
-            <div className="text-[10px] text-indigo-700/80 font-medium mt-1 pt-1.5 border-t border-indigo-100 flex justify-between">
-              <span>Departs: {tripMetrics.tripStartDateStr}</span>
-              <span>Returns: {tripMetrics.tripEndDateStr}</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="font-extrabold text-slate-900 text-sm font-mono">
+                {timers.mainTime}
+              </span>
+              <button 
+                onClick={() => setShowEditCityModal(cities[0])}
+                className="text-[10px] text-stone-400 hover:text-slate-800 underline"
+              >
+                Edit Dates
+              </button>
             </div>
           </div>
 
-          {/* CARD 2: DEDICATED CITY LEG & NEXT STOP CARD */}
-          <div className="bg-amber-50/90 border border-amber-200/80 rounded-2xl p-3 flex flex-col justify-between shadow-xs">
+          <div className="bg-amber-50/90 border border-amber-200/80 rounded-xl px-3 py-2 flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-black text-amber-950 flex items-center gap-1.5 tracking-wide">
+              <span className="text-[10px] uppercase font-bold text-amber-800 flex items-center gap-1">
                 <Train className="w-3.5 h-3.5 text-amber-600" />
-                Leg: {currentCity.name}
+                {nextCity ? `Time Left in ${currentCity.name}` : `Final Leg (${currentCity.name})`}
               </span>
-              <span className="text-[10px] font-semibold text-amber-800">
-                {nextCity ? `Next: ${nextCity.name}` : 'Final Leg'}
+              <span className="text-[10px] font-semibold text-amber-700">
+                {nextCity ? `➔ ${nextCity.name}` : 'Departure'}
               </span>
             </div>
-
-            <div className="mt-2 space-y-1">
-              <div className="flex items-baseline justify-between">
-                <span className="text-[10px] font-bold text-amber-900">
-                  {nextCity ? `Time Till ${nextCity.name}:` : `Departing ${currentCity.name}:`}
-                </span>
-                <span className="text-[10px] font-bold text-amber-700">
-                  {cityLegMetrics.pctCity}% spent
-                </span>
-              </div>
-              <div className="font-extrabold text-slate-900 text-base font-mono tracking-tight">
-                {cityLegMetrics.legCountdown}
-              </div>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="font-extrabold text-slate-900 text-sm font-mono">
+                {timers.cityTime}
+              </span>
+              <span className="text-[10px] font-medium text-stone-500">
+                {timers.pctCity}% spent
+              </span>
             </div>
-
-            <div className="w-full bg-amber-200/70 rounded-full h-1.5 mt-1.5 overflow-hidden">
+            <div className="w-full bg-amber-200/60 rounded-full h-1 mt-1 overflow-hidden">
               <div 
-                className="bg-amber-600 h-1.5 rounded-full transition-all duration-1000"
-                style={{ width: `${cityLegMetrics.pctCity}%` }}
+                className="bg-amber-600 h-1 rounded-full transition-all duration-1000"
+                style={{ width: `${timers.pctCity}%` }}
               />
             </div>
           </div>
 
-          {/* CARD 3: COMMON KITTY */}
-          <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-2xl p-3 flex flex-col justify-between shadow-xs">
+          <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl px-3 py-2 flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-black text-emerald-950 flex items-center gap-1 tracking-wide">
+              <span className="text-[10px] uppercase font-bold text-emerald-800 flex items-center gap-1">
                 <Coins className="w-3.5 h-3.5 text-emerald-600" />
                 Common Kitty Pot
               </span>
-              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">
                 Equal Split
               </span>
             </div>
-
-            <div className="mt-2">
-              <div className="flex items-baseline justify-between">
-                <span className="text-lg font-black text-emerald-950">
-                  ¥{kittyStats.remaining.toLocaleString()}
-                </span>
-                <span className="text-xs font-bold text-emerald-700">
-                  ≈ RM {jpyToMyr(kittyStats.remaining)}
-                </span>
-              </div>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="font-extrabold text-emerald-950 text-base">
+                ¥{kittyStats.remaining.toLocaleString()}
+              </span>
+              <span className="text-xs font-bold text-emerald-700">
+                ≈ RM {jpyToMyr(kittyStats.remaining)}
+              </span>
             </div>
-
-            <div className="text-[10px] text-emerald-700 mt-1 pt-1.5 border-t border-emerald-100 flex justify-between">
+            <div className="text-[10px] text-emerald-700 mt-0.5 flex justify-between">
               <span>{travelers.length} companions</span>
               <span>Spent: ¥{kittyStats.kittySpent.toLocaleString()}</span>
             </div>
@@ -800,12 +745,8 @@ Respond with practical transit tips, timing advice, food specialties, and concis
 
       {/* MAIN VIEWPORT */}
       <main className="flex-1 max-w-4xl w-full mx-auto p-4 space-y-4">
-        
-        {/* TAB 1: PLACES */}
         {activeTab === 'places' && (
           <div className="space-y-4">
-            
-            {/* LODGING & LEG CONTROL CARD */}
             <div className="bg-white rounded-3xl border border-stone-200/90 p-5 shadow-xs space-y-3">
               <div className="flex items-start justify-between flex-wrap gap-2">
                 <div>
@@ -840,7 +781,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                 </button>
               </div>
 
-              {/* CITY TABS SWITCHER */}
+              {/* CITY TABS */}
               <div className="flex items-center gap-1.5 pt-2 border-t border-stone-100 overflow-x-auto">
                 <span className="text-[10px] uppercase font-bold text-stone-400 mr-1">Switch Leg:</span>
                 {cities.map(c => {
@@ -874,7 +815,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                 </button>
               </div>
 
-              {/* FILTER & DISTANCE SORT BAR */}
+              {/* FILTER & DISTANCE SORT */}
               <div className="flex items-center justify-between text-xs pt-1 flex-wrap gap-2">
                 <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl">
                   {[
@@ -904,7 +845,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                     }`}
                   >
                     <ArrowUpDown className="w-3 h-3" />
-                    <span>{sortByDistance ? 'Sorted: Closest First' : 'Sort by Distance'}</span>
+                    <span>{sortByDistance ? 'Sorted: Shortest Distance' : 'Sort by Distance'}</span>
                   </button>
 
                   <span className="text-xs text-stone-400">
@@ -1011,9 +952,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                           if (supabaseRef.current) {
                             try {
                               const res = await supabaseRef.current.from('trip_places').delete().eq('id', placeIdToDelete);
-                              if (res && res.error) {
-                                syncFromCloud();
-                              }
+                              if (res && res.error) syncFromCloud();
                             } catch (err) {
                               syncFromCloud();
                             }
@@ -1032,11 +971,9 @@ Respond with practical transit tips, timing advice, food specialties, and concis
           </div>
         )}
 
-        {/* TAB 2: TIMELINE (INDIVIDUAL LEG COUNTDOWNS & MANAGEMENT) */}
+        {/* TAB 2: TIMELINE */}
         {activeTab === 'timeline' && (
           <div className="space-y-4">
-            
-            {/* CURRENT BASE HOTEL */}
             <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-xs">
               <div className="flex items-start justify-between">
                 <div>
@@ -1054,7 +991,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   className="px-2.5 py-1.5 rounded-lg border border-stone-200 text-stone-700 text-xs font-medium hover:bg-stone-50 flex items-center gap-1"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
-                  Edit Base & Dates
+                  Edit Leg & Hotel
                 </button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 pt-3 border-t border-stone-100 text-xs">
@@ -1072,61 +1009,33 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                     <Clock className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-[10px] text-stone-400 uppercase font-medium">Time Remaining in {currentCity.name}</span>
+                    <span className="text-[10px] text-stone-400 uppercase font-medium">Time in {currentCity.name}</span>
                     <p className="text-slate-800 font-semibold font-mono">
-                      {cityLegMetrics.legCountdown}
+                      {timers.cityTime}
                     </p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* ALL CITIES / TRAVEL LEGS WITH LIVE COUNTDOWNS */}
             <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">All Travel Legs in Japan</h3>
-                  <p className="text-xs text-stone-500">Every city stop has its own countdown and schedule</p>
+                  <h3 className="text-sm font-bold text-slate-900">Trip Itinerary Route</h3>
+                  <p className="text-xs text-stone-500">Edit dates, add new stops, or adjust hotels anytime</p>
                 </div>
                 <button
                   onClick={() => setShowNewCityModal(true)}
                   className="px-3 py-1.5 rounded-lg bg-slate-900 text-stone-50 text-xs font-medium hover:bg-slate-800 flex items-center gap-1 shadow-xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  Add Travel Leg
+                  Add City Leg
                 </button>
               </div>
-
               <div className="space-y-2.5 pt-1">
                 {cities.map((city, idx) => {
                   const isCurrent = city.id === activeCityId;
                   const isOrigin = idx === 0;
-
-                  // Individual timer for this exact city leg
-                  const cur = now.getTime();
-                  const cStart = new Date(city.startDate).getTime();
-                  const cEnd = new Date(city.endDate).getTime();
-
-                  let statusBadge = '';
-                  let statusTime = '';
-
-                  if (cur < cStart) {
-                    const diff = Math.max(0, cStart - cur);
-                    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-                    const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
-                    statusBadge = 'Upcoming';
-                    statusTime = `Starts in ${d}d ${h}h`;
-                  } else if (cur <= cEnd) {
-                    const diff = Math.max(0, cEnd - cur);
-                    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-                    const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
-                    statusBadge = 'Active Now';
-                    statusTime = `${d}d ${h}h remaining`;
-                  } else {
-                    statusBadge = 'Completed';
-                    statusTime = 'Leg Finished';
-                  }
-
                   return (
                     <div
                       key={city.id}
@@ -1142,22 +1051,20 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                           <div>
                             <div className="flex items-center gap-2">
                               <h4 className="font-bold text-sm text-slate-900">{city.name}</h4>
-                              <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${
-                                statusBadge === 'Active Now' ? 'bg-emerald-100 text-emerald-800' :
-                                statusBadge === 'Upcoming' ? 'bg-blue-100 text-blue-800' : 'bg-stone-200 text-stone-600'
-                              }`}>
-                                {statusBadge}: {statusTime}
-                              </span>
+                              {isOrigin && (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-stone-200 text-stone-700">
+                                  First Leg
+                                </span>
+                              )}
                               {isCurrent && (
-                                <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-slate-900 text-stone-50">
-                                  Current Base
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-900 text-stone-50">
+                                  Active Base
                                 </span>
                               )}
                             </div>
                             <p className="text-xs text-stone-500 font-serif">{city.nameJa}</p>
                           </div>
                         </div>
-
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => setShowEditCityModal(city)}
@@ -1186,10 +1093,9 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                           )}
                         </div>
                       </div>
-
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-2 border-t border-stone-100 text-xs text-stone-600">
                         <div>
-                          <span className="text-[10px] text-stone-400 block uppercase font-medium">Dates & Schedule</span>
+                          <span className="text-[10px] text-stone-400 block uppercase font-medium">Dates</span>
                           <span className="font-medium text-slate-800">
                             {city.startDate.replace('T', ' ')} ➔ {city.endDate.replace('T', ' ')}
                           </span>
@@ -1199,7 +1105,6 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                           <span className="truncate block font-medium text-slate-800">{city.hotelName} ({city.station})</span>
                         </div>
                       </div>
-
                       {city.transitToNext && (
                         <div className="mt-2.5 pt-2 border-t border-dashed border-stone-200 flex items-center justify-between text-xs text-stone-500">
                           <span className="flex items-center gap-1 text-[11px]">
@@ -1384,9 +1289,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                             if (supabaseRef.current) {
                               try {
                                 const res = await supabaseRef.current.from('trip_expenses').delete().eq('id', expenseIdToDelete);
-                                if (res && res.error) {
-                                  syncFromCloud();
-                                }
+                                if (res && res.error) syncFromCloud();
                               } catch (err) {
                                 syncFromCloud();
                               }
@@ -2056,7 +1959,7 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
       <div className="bg-white rounded-2xl p-5 max-w-sm w-full space-y-3 shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center">
           <h3 className="font-bold text-sm text-slate-900">
-            {isNew ? '+ Add New Travel Leg' : `Edit Leg • ${city?.name}`}
+            {isNew ? '+ Add New City Leg' : `Edit Leg • ${city?.name}`}
           </h3>
           <button onClick={onClose} className="text-stone-400 hover:text-slate-900">
             <X className="w-4 h-4" />
@@ -2064,7 +1967,7 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
         </div>
         <form onSubmit={handleSubmit} className="space-y-2.5 text-xs">
           <div>
-            <label className="text-[10px] font-medium text-stone-500 uppercase">City / Stop Name</label>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">City / Area Name</label>
             <input
               type="text"
               required
@@ -2086,7 +1989,7 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] font-medium text-stone-500 uppercase">Arrive / Check-in</label>
+              <label className="text-[10px] font-medium text-stone-500 uppercase">Arrival Date & Time</label>
               <input
                 type="datetime-local"
                 required
@@ -2096,7 +1999,7 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
               />
             </div>
             <div>
-              <label className="text-[10px] font-medium text-stone-500 uppercase">Depart / Checkout</label>
+              <label className="text-[10px] font-medium text-stone-500 uppercase">Departure Date & Time</label>
               <input
                 type="datetime-local"
                 required
@@ -2107,3 +2010,295 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
             </div>
           </div>
           <div>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Hotel / Lodging Name</label>
+            <input
+              type="text"
+              value={hotelName}
+              onChange={(e) => setHotelName(e.target.value)}
+              placeholder="e.g. Swissôtel Nankai Osaka"
+              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Hotel Full Address</label>
+            <input
+              type="text"
+              value={hotelAddress}
+              onChange={(e) => setHotelAddress(e.target.value)}
+              placeholder="e.g. 5-1-60 Namba, Chuo Ward, Osaka"
+              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Nearest Transit Station</label>
+            <input
+              type="text"
+              value={station}
+              onChange={(e) => setStation(e.target.value)}
+              placeholder="e.g. Nankai Namba Station Direct"
+              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-medium text-stone-500 uppercase">Transit to Next Stop</label>
+            <input
+              type="text"
+              value={transitToNext}
+              onChange={(e) => setTransitToNext(e.target.value)}
+              placeholder="e.g. Shinkansen Nozomi (2h 45m)"
+              className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg"
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2 rounded-xl bg-stone-100 text-stone-600 font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 py-2 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800"
+            >
+              Save Leg
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function TopUpModal({ travelers, onClose, onAdd }) {
+  const [amt, setAmt] = useState(1000);
+  const [mode, setMode] = useState('all');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const val = Number(amt);
+    if (!val || val <= 0) return;
+    const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const items = [];
+    if (mode === 'all') {
+      travelers.forEach(t => {
+        items.push({
+          id: 'c-' + Date.now() + '-' + t.id,
+          travelerId: t.id,
+          amountJPY: val,
+          date: dateStr,
+          note: `Equal top-up ¥${val.toLocaleString()}`
+        });
+      });
+    } else {
+      items.push({
+        id: 'c-' + Date.now(),
+        travelerId: mode,
+        amountJPY: val,
+        date: dateStr,
+        note: `Single top-up ¥${val.toLocaleString()}`
+      });
+    }
+    onAdd(items);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl p-5 max-w-sm w-full space-y-3 shadow-xl">
+        <div className="flex justify-between items-center">
+          <h3 className="font-bold text-sm text-slate-900">Top Up Common Kitty</h3>
+          <button onClick={onClose} className="text-stone-400 hover:text-slate-900">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+          <div>
+            <label className="text-[10px] text-stone-500 uppercase font-medium">Contributor</label>
+            <select
+              value={mode}
+              onChange={(e) => setMode(e.target.value)}
+              className="w-full mt-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-slate-900 font-semibold"
+            >
+              <option value="all">Everyone (All {travelers.length} Travelers)</option>
+              {travelers.map(t => (
+                <option key={t.id} value={t.id}>Single: {t.avatar} {t.name} Only</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-stone-500 uppercase font-medium">Quick Presets (¥ JPY)</label>
+            <div className="grid grid-cols-4 gap-1.5 mt-1">
+              {[1000, 3000, 5000, 10000].map(v => (
+                <button
+                  type="button"
+                  key={v}
+                  onClick={() => setAmt(v)}
+                  className={`py-1.5 rounded-lg font-bold border transition ${
+                    Number(amt) === v ? 'bg-slate-900 text-white border-slate-900' : 'bg-stone-50 text-stone-700 border-stone-200'
+                  }`}
+                >
+                  ¥{v.toLocaleString()}
+                </button>
+              ))}
+            </div>
+            <input
+              type="number"
+              required
+              min="100"
+              step="100"
+              value={amt}
+              onChange={(e) => setAmt(e.target.value)}
+              className="w-full mt-2.5 px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-slate-900 font-bold"
+            />
+          </div>
+          <p className="text-xs text-emerald-800 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200/60">
+            Total added to Kitty: ¥{(mode === 'all' ? amt * travelers.length : amt).toLocaleString()}
+          </p>
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2 rounded-xl bg-stone-100 text-stone-600 font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 py-2 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800"
+            >
+              Confirm
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function AddExpenseModal({ travelers, activeTravelerId, onClose, onAdd }) {
+  const [title, setTitle] = useState('');
+  const [amountJPY, setAmountJPY] = useState('');
+  const [category, setCategory] = useState('Ramen & Dining');
+  const [paymentMethod, setPaymentMethod] = useState('kitty');
+  const [paidBy, setPaidBy] = useState(activeTravelerId);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!title.trim() || !amountJPY) return;
+    onAdd({
+      id: 'e-' + Date.now(),
+      title,
+      amountJPY: Number(amountJPY),
+      category,
+      paymentMethod,
+      paidBy: paymentMethod === 'personal' ? paidBy : null,
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl p-5 max-w-sm w-full space-y-3 shadow-xl">
+        <div className="flex justify-between items-center">
+          <h3 className="font-bold text-sm text-slate-900">Record Expense</h3>
+          <button onClick={onClose} className="text-stone-400 hover:text-slate-900">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+          <div>
+            <label className="text-[10px] text-stone-500 uppercase font-medium">Payment Source</label>
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('kitty')}
+                className={`py-2 rounded-xl border font-medium ${
+                  paymentMethod === 'kitty' ? 'bg-slate-900 text-white border-slate-900' : 'bg-stone-50 text-stone-600 border-stone-200'
+                }`}
+              >
+                Common Kitty
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('personal')}
+                className={`py-2 rounded-xl border font-medium ${
+                  paymentMethod === 'personal' ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-stone-50 text-stone-600 border-stone-200'
+                }`}
+              >
+                Personal Pocket
+              </button>
+            </div>
+          </div>
+          {paymentMethod === 'personal' && (
+            <div>
+              <label className="text-[10px] text-stone-500 uppercase font-medium">Paid By Traveler</label>
+              <select
+                value={paidBy}
+                onChange={(e) => setPaidBy(e.target.value)}
+                className="w-full mt-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
+              >
+                {travelers.map(t => (
+                  <option key={t.id} value={t.id}>{t.avatar} {t.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div>
+            <label className="text-[10px] text-stone-500 uppercase font-medium">Expense Item</label>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Ichiran Tonkotsu Ramen"
+              className="w-full mt-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-stone-500 uppercase font-medium">Amount (¥ JPY)</label>
+            <input
+              type="number"
+              required
+              min="1"
+              value={amountJPY}
+              onChange={(e) => setAmountJPY(e.target.value)}
+              placeholder="2800"
+              className="w-full mt-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-bold"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-stone-500 uppercase font-medium">Category</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full mt-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
+            >
+              <option>Ramen & Dining</option>
+              <option>Konbini</option>
+              <option>Transit</option>
+              <option>Temples</option>
+              <option>Shopping</option>
+              <option>Lodging</option>
+              <option>Misc</option>
+            </select>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2 rounded-xl bg-stone-100 text-stone-600 font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 py-2 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800"
+            >
+              Save Expense
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
