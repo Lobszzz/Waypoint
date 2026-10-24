@@ -27,6 +27,20 @@ import {
   Navigation
 } from 'lucide-react';
 
+// Distance calculation helper (Haversine formula in km)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Number((R * c).toFixed(1));
+}
+
 function getSupabaseClient(rawUrl, key) {
   if (!rawUrl || !key) return null;
   const cleanUrl = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
@@ -133,7 +147,9 @@ const DEFAULT_CITIES = [
     station: 'Nankai Namba Station Direct',
     startDate: '2026-10-24T09:00',
     endDate: '2026-10-27T10:30',
-    transitToNext: 'JR Special Rapid (28m)'
+    transitToNext: 'JR Special Rapid (28m)',
+    lat: 34.6644,
+    lng: 135.5019
   },
   {
     id: 'kyoto',
@@ -144,7 +160,9 @@ const DEFAULT_CITIES = [
     station: 'JR Kyoto Station Central Gate',
     startDate: '2026-10-27T10:30',
     endDate: '2026-10-30T14:00',
-    transitToNext: 'Shinkansen Nozomi (2h 45m)'
+    transitToNext: 'Shinkansen Nozomi (2h 45m)',
+    lat: 34.9868,
+    lng: 135.7606
   },
   {
     id: 'fukuoka',
@@ -155,7 +173,9 @@ const DEFAULT_CITIES = [
     station: 'JR Hakata Station Direct Gate',
     startDate: '2026-10-30T14:00',
     endDate: '2026-11-03T18:00',
-    transitToNext: 'Fukuoka Airport Subway (5m)'
+    transitToNext: 'Fukuoka Airport Subway (5m)',
+    lat: 33.5902,
+    lng: 130.4207
   }
 ];
 
@@ -235,13 +255,22 @@ export default function App() {
   const [aiLog, setAiLog] = useState([
     {
       role: 'assistant',
-      text: "Greetings. I am your Waypoint travel companion. I track your destinations, schedule, and Common Kitty. How can I help you today?"
+      text: "Greetings! I am your Waypoint travel companion. I track your destinations, schedule, and Common Kitty. How can I help you today?"
     }
   ]);
   const [aiInput, setAiInput] = useState('');
   const [isAiThinking, setIsAiThinking] = useState(false);
   const chatEndRef = useRef(null);
 
+  const activeCityIndex = useMemo(() => {
+    const idx = cities.findIndex(c => c.id === activeCityId);
+    return idx >= 0 ? idx : 0;
+  }, [cities, activeCityId]);
+
+  const currentCity = useMemo(() => cities[activeCityIndex] || cities[0] || DEFAULT_CITIES[0], [cities, activeCityIndex]);
+  const nextCity = useMemo(() => cities[activeCityIndex + 1] || null, [cities, activeCityIndex]);
+
+  // Sync to Cloud
   const syncFromCloud = useCallback(async () => {
     if (!supabaseRef.current) return;
     try {
@@ -259,7 +288,8 @@ export default function App() {
           timeOfDay: cp.time_of_day || cp.timeOfDay || 'Morning',
           costJPY: Number(cp.est_cost || cp.costJPY || 0),
           distanceKm: Number(cp.distance_km || 0),
-          transitMins: Number(cp.transit_mins || 0),
+          lat: cp.lat ? Number(cp.lat) : null,
+          lng: cp.lng ? Number(cp.lng) : null,
           checkedIn: !!(cp.visited || cp.checkedIn),
           checkedInBy: cp.checked_in_by || cp.checkedInBy || null,
           unlockedAt: cp.unlocked_at || cp.unlockedAt || null,
@@ -303,7 +333,9 @@ export default function App() {
           station: cc.station || '',
           startDate: cc.start_date || cc.startDate || '2026-10-24T09:00',
           endDate: cc.end_date || cc.endDate || '2026-10-27T10:30',
-          transitToNext: cc.transit_to_next || cc.transitToNext || ''
+          transitToNext: cc.transit_to_next || cc.transitToNext || '',
+          lat: cc.lat ? Number(cc.lat) : (DEFAULT_CITIES.find(d => d.id === cc.id)?.lat || null),
+          lng: cc.lng ? Number(cc.lng) : (DEFAULT_CITIES.find(d => d.id === cc.id)?.lng || null)
         }));
         setCities(mappedCities);
       }
@@ -363,14 +395,6 @@ export default function App() {
   }, [aiLog, isAiThinking]);
 
   const jpyToMyr = (jpy) => ((Number(jpy || 0) / 100) * ratePer100Jpy).toFixed(2);
-
-  const activeCityIndex = useMemo(() => {
-    const idx = cities.findIndex(c => c.id === activeCityId);
-    return idx >= 0 ? idx : 0;
-  }, [cities, activeCityId]);
-
-  const currentCity = useMemo(() => cities[activeCityIndex] || cities[0] || DEFAULT_CITIES[0], [cities, activeCityIndex]);
-  const nextCity = useMemo(() => cities[activeCityIndex + 1] || null, [cities, activeCityIndex]);
 
   // SMART TWO-PHASE COUNTDOWN
   const timers = useMemo(() => {
@@ -467,6 +491,7 @@ export default function App() {
     };
   }, [contributions, expenses]);
 
+  // Active City Places & Distance Sorting
   const activeCityPlaces = useMemo(() => {
     return places.filter(p => p.cityId === activeCityId);
   }, [places, activeCityId]);
@@ -515,7 +540,8 @@ export default function App() {
           checked_in_by: targetUpdated.checkedInBy,
           unlocked_at: targetUpdated.unlockedAt,
           distance_km: targetUpdated.distanceKm,
-          transit_mins: targetUpdated.transitMins,
+          lat: targetUpdated.lat,
+          lng: targetUpdated.lng,
           notes: targetUpdated.notes
         });
       } catch {}
@@ -572,6 +598,7 @@ Respond with practical transit tips, timing advice, food specialties, and concis
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text }] }],
+          tools: [{ googleSearch: {} }],
           systemInstruction: { parts: [{ text: systemPrompt }] },
           generationConfig: { temperature: 0.7, maxOutputTokens: 800 }
         })
@@ -1449,7 +1476,8 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   time_of_day: newPlace.timeOfDay,
                   est_cost: newPlace.costJPY,
                   distance_km: newPlace.distanceKm,
-                  transit_mins: newPlace.transitMins,
+                  lat: newPlace.lat,
+                  lng: newPlace.lng,
                   notes: newPlace.notes,
                   visited: false
                 }]);
@@ -1532,7 +1560,9 @@ Respond with practical transit tips, timing advice, food specialties, and concis
                   station: saved.station,
                   start_date: saved.startDate,
                   end_date: saved.endDate,
-                  transit_to_next: saved.transitToNext
+                  transit_to_next: saved.transitToNext,
+                  lat: saved.lat,
+                  lng: saved.lng
                 });
               } catch {}
             }
@@ -1592,6 +1622,9 @@ Respond with practical transit tips, timing advice, food specialties, and concis
   );
 }
 
+// ----------------------------------------------------
+// AUTO-SUGGEST & DISTANCE CALCULATOR MODAL
+// ----------------------------------------------------
 function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
   const [cityId, setCityId] = useState(currentCity.id);
   const [title, setTitle] = useState('');
@@ -1602,6 +1635,65 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
   const [distanceKm, setDistanceKm] = useState('');
   const [notes, setNotes] = useState('');
   const [address, setAddress] = useState('');
+  const [lat, setLat] = useState(null);
+  const [lng, setLng] = useState(null);
+
+  // Suggestions state
+  const [suggestions, setSuggestions] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Auto-search OpenStreetMap/Photon as user types
+  useEffect(() => {
+    const q = title.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const activeC = cities.find(c => c.id === cityId) || currentCity;
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q + ' ' + activeC.name + ' Japan')}&limit=5`);
+        const data = await res.json();
+        if (data && data.features) {
+          setSuggestions(data.features);
+        }
+      } catch (err) {
+        console.error("Geocoding lookup error:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [title, cityId, cities, currentCity]);
+
+  // Handle suggestion tap
+  const handleSelectSuggestion = (feature) => {
+    const name = feature.properties.name || title;
+    const pAddress = [
+      feature.properties.street,
+      feature.properties.district,
+      feature.properties.city,
+      feature.properties.state
+    ].filter(Boolean).join(', ');
+
+    const [spotLng, spotLat] = feature.geometry.coordinates;
+
+    setTitle(name);
+    setAddress(pAddress || `${name}, Japan`);
+    setLat(spotLat);
+    setLng(spotLng);
+    setSuggestions([]);
+
+    // Auto-calculate distance from current hotel base
+    const activeC = cities.find(c => c.id === cityId) || currentCity;
+    if (activeC.lat && activeC.lng) {
+      const dist = calculateDistance(activeC.lat, activeC.lng, spotLat, spotLng);
+      setDistanceKm(dist);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -1615,6 +1707,8 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
       timeOfDay,
       costJPY: Number(costJPY) || 0,
       distanceKm: Number(distanceKm) || 0,
+      lat,
+      lng,
       checkedIn: false,
       checkedInBy: null,
       unlockedAt: null,
@@ -1645,27 +1739,54 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               ))}
             </select>
           </div>
-          <div>
-            <label className="text-[10px] text-stone-500 uppercase font-medium">Place Name (English)</label>
+
+          {/* Place Name with Dropdown Autocomplete */}
+          <div className="relative">
+            <label className="text-[10px] text-stone-500 uppercase font-medium flex justify-between">
+              <span>Place Name (Auto-Suggest)</span>
+              {isSearching && <span className="text-[10px] text-amber-600 animate-pulse font-bold">Searching...</span>}
+            </label>
             <input
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Dotonbori Canal"
+              placeholder="e.g. Osaka Castle, Dotonbori..."
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl"
+              autoComplete="off"
             />
+
+            {/* Dropdown Suggestions */}
+            {suggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-2xl z-50 overflow-hidden divide-y divide-stone-100 max-h-48 overflow-y-auto">
+                {suggestions.map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSelectSuggestion(item)}
+                    className="w-full text-left p-2.5 hover:bg-amber-50/80 transition text-xs flex flex-col"
+                  >
+                    <span className="font-bold text-slate-900">{item.properties.name}</span>
+                    <span className="text-[10px] text-stone-500 truncate">
+                      {[item.properties.street, item.properties.city, item.properties.state].filter(Boolean).join(', ')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Japanese Kanji / Kana (Optional)</label>
             <input
               type="text"
               value={titleJa}
               onChange={(e) => setTitleJa(e.target.value)}
-              placeholder="e.g. 道頓堀"
+              placeholder="e.g. 大阪城"
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl font-serif"
             />
           </div>
+
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-stone-500 uppercase font-medium">Category</label>
@@ -1697,6 +1818,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               </select>
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-stone-500 uppercase font-medium">Est. Cost (¥ JPY)</label>
@@ -1705,7 +1827,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
                 min="0"
                 value={costJPY}
                 onChange={(e) => setCostJPY(e.target.value)}
-                placeholder="e.g. 500"
+                placeholder="e.g. 600"
                 className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl font-mono"
               />
             </div>
@@ -1717,21 +1839,23 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
                 min="0"
                 value={distanceKm}
                 onChange={(e) => setDistanceKm(e.target.value)}
-                placeholder="e.g. 1.2"
+                placeholder="Auto-calculated"
                 className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl font-mono"
               />
             </div>
           </div>
+
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Address / Station Exit</label>
             <input
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="e.g. Near Namba Station"
+              placeholder="e.g. 1-1 Osakajo, Chuo Ward"
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl"
             />
           </div>
+
           <div>
             <label className="text-[10px] text-stone-500 uppercase font-medium">Notes & Tips</label>
             <textarea
@@ -1742,6 +1866,7 @@ function AddPlaceModal({ currentCity, cities, onClose, onAdd }) {
               className="w-full mt-1 px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl"
             />
           </div>
+
           <div className="flex gap-2 pt-2">
             <button
               type="button"
@@ -1937,6 +2062,8 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
   const [startDate, setStartDate] = useState(city?.startDate || '2026-10-24T09:00');
   const [endDate, setEndDate] = useState(city?.endDate || '2026-10-27T10:30');
   const [transitToNext, setTransitToNext] = useState(city?.transitToNext || '');
+  const [lat, setLat] = useState(city?.lat || null);
+  const [lng, setLng] = useState(city?.lng || null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -1950,7 +2077,9 @@ function EditCityModal({ city, isNew, onClose, onSave }) {
       station: station.trim() || 'JR Main Station',
       startDate,
       endDate,
-      transitToNext: transitToNext.trim()
+      transitToNext: transitToNext.trim(),
+      lat,
+      lng
     });
   };
 
