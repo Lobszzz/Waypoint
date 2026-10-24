@@ -25,30 +25,38 @@ import {
   Cloud,
   CloudOff
 } from 'lucide-react';
-
 function getSupabaseClient(rawUrl, key) {
   if (!rawUrl || !key) return null;
-  const url = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+  const cleanUrl = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+
   try {
-    if (typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function') {
-      return window.supabase.createClient(url, key);
+    // Check if official Supabase JS SDK is available on window
+    const supabaseGlobal = window.supabase;
+    if (supabaseGlobal && typeof supabaseGlobal.createClient === 'function') {
+      return supabaseGlobal.createClient(cleanUrl, key);
     }
+
+    // Direct REST Fallback (with corrected template literals)
     return {
       from: (tableName) => ({
         select: async () => {
           try {
-            const res = await fetch(`${url}/rest/v1/${tableName}?select=*`, {
-              headers: { apikey: key, Authorization: `Bearer ${key}` }
+            const res = await fetch(`${cleanUrl}/rest/v1/${tableName}?select=*`, {
+              headers: { 
+                apikey: key, 
+                Authorization: `Bearer ${key}` 
+              }
             });
             const data = await res.json();
             return { data: Array.isArray(data) ? data : [], error: null };
           } catch (e) {
+            console.error(`Supabase select error on ${tableName}:`, e);
             return { data: null, error: e };
           }
         },
         insert: async (rows) => {
           try {
-            await fetch(`${url}/rest/v1/${tableName}`, {
+            const res = await fetch(`${cleanUrl}/rest/v1/${tableName}`, {
               method: 'POST',
               headers: {
                 apikey: key,
@@ -58,14 +66,15 @@ function getSupabaseClient(rawUrl, key) {
               },
               body: JSON.stringify(rows)
             });
-            return { error: null };
+            return { error: res.ok ? null : await res.text() };
           } catch (e) {
+            console.error(`Supabase insert error on ${tableName}:`, e);
             return { error: e };
           }
         },
         upsert: async (row) => {
           try {
-            await fetch(`${url}/rest/v1/${tableName}`, {
+            const res = await fetch(`${cleanUrl}/rest/v1/${tableName}`, {
               method: 'POST',
               headers: {
                 apikey: key,
@@ -75,25 +84,47 @@ function getSupabaseClient(rawUrl, key) {
               },
               body: JSON.stringify(row)
             });
-            return { error: null };
+            return { error: res.ok ? null : await res.text() };
           } catch (e) {
+            console.error(`Supabase upsert error on ${tableName}:`, e);
             return { error: e };
           }
         },
         delete: () => ({
           eq: async (col, val) => {
             try {
-              await fetch(`${url}/rest/v1/${tableName}?${col}=eq.${val}`, {
+              const res = await fetch(`${cleanUrl}/rest/v1/${tableName}?${col}=eq.${encodeURIComponent(val)}`, {
                 method: 'DELETE',
-                headers: { apikey: key, Authorization: `Bearer ${key}` }
+                headers: { 
+                  apikey: key, 
+                  Authorization: `Bearer ${key}` 
+                }
               });
-              return { error: null };
+              if (!res.ok) {
+                console.error("Delete failed HTTP status:", res.status, await res.text());
+              }
+              return { error: res.ok ? null : new Error('Delete failed') };
             } catch (e) {
+              console.error(`Supabase delete error on ${tableName}:`, e);
               return { error: e };
             }
           }
         })
       }),
+      channel: () => ({
+        on: function() { return this; },
+        subscribe: function(callback) { 
+          if (typeof callback === 'function') callback('SUBSCRIBED');
+          return this; 
+        }
+      }),
+      removeChannel: () => {}
+    };
+  } catch (err) {
+    console.error("Error creating Supabase client:", err);
+    return null;
+  }
+}
       channel: () => ({
         on: function() { return this; },
         subscribe: function() { return this; }
